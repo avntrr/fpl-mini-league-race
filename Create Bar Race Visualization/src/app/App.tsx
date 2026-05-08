@@ -23,10 +23,20 @@ interface FplData {
   regionsMap?: Record<string, string>; // team_name → ISO 2-letter code (Global only)
 }
 
-/** Convert 2-letter ISO code to flag emoji. "ID" → 🇮🇩 */
+// FPL uses non-standard codes for UK nations — map them to real ISO codes
+const FPL_ISO_MAP: Record<string, string> = {
+  EN: "GB", // England
+  SC: "GB", // Scotland
+  WA: "GB", // Wales
+  NI: "GB", // Northern Ireland
+};
+
+/** Convert 2-letter ISO code (or FPL custom code) to flag emoji. "ID" → 🇮🇩 */
 const isoToFlag = (iso: string): string => {
-  if (!iso || iso.length !== 2) return "";
-  return iso.toUpperCase().split("").map(c =>
+  if (!iso) return "";
+  const code = FPL_ISO_MAP[iso.toUpperCase()] ?? iso.toUpperCase();
+  if (code.length !== 2) return "";
+  return code.split("").map(c =>
     String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
   ).join("");
 };
