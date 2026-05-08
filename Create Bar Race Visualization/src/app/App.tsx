@@ -102,6 +102,12 @@ export default function App() {
     (window as any).__FPL_READY = true;
   });
 
+  // Sync html/body background to theme so mobile zoom gap matches app colour
+  useEffect(() => {
+    document.documentElement.style.background = tk.bg;
+    document.body.style.background = tk.bg;
+  }, [tk.bg]);
+
   useEffect(() => {
     if (fplData) { setGw(1); setPlay(false); }
   }, [fplData]);
