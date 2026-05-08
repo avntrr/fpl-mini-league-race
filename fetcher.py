@@ -52,17 +52,23 @@ def _get_with_retry(url: str, params: Optional[dict] = None) -> dict:
     raise RuntimeError(f"Gagal fetch {url} setelah {MAX_RETRIES} percobaan: {last_err}")
 
 
-def fetch_standings(league_id: int) -> tuple[str, list[Manager]]:
-    """Ambil nama league + daftar manager. Handle pagination otomatis.
+MAX_DISPLAY = 20   # maximum managers ever shown in the UI
+
+def fetch_standings(league_id: int, limit: int = MAX_DISPLAY) -> tuple[str, list[Manager]]:
+    """Ambil nama league + top-{limit} manager (sudah terurut by rank dari API).
+
+    Standings FPL sudah diurutkan by total points descending, jadi cukup
+    ambil halaman pertama untuk mendapatkan top-N. Tidak perlu fetch semua
+    halaman kalau liga punya ratusan member.
 
     Returns:
-        (league_name, managers)
+        (league_name, managers)  — len(managers) <= limit
     """
     managers: list[Manager] = []
     league_name = f"FPL League {league_id}"
     page = 1
 
-    while True:
+    while len(managers) < limit:
         try:
             data = _get_with_retry(
                 STANDINGS_URL.format(league_id=league_id),
@@ -84,8 +90,10 @@ def fetch_standings(league_id: int) -> tuple[str, list[Manager]]:
                     "manager_name": row.get("player_name", ""),
                 }
             )
+            if len(managers) >= limit:
+                break
 
-        if not data.get("standings", {}).get("has_next"):
+        if not data.get("standings", {}).get("has_next") or len(managers) >= limit:
             break
         page += 1
         time.sleep(REQUEST_DELAY)
