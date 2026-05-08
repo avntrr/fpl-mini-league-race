@@ -37,20 +37,59 @@ def _timed_set(key: str, val: object) -> None:
     _TIMED_CACHE[key] = (val, time.time())
 
 # ── League ID discovery (cached) ──────────────────────────────────────────────
+ENTRY_URL = BASE + "/entry/{entry_id}/"
+
 _LEAGUE_ID_CACHE: dict[str, int | None] = {}
 
+
+def _discover_overall_league_id() -> int | None:
+    """Find the FPL "Overall" classic league ID by inspecting a known manager's leagues.
+
+    Every FPL manager is auto-enrolled in the global "Overall" league, so
+    fetching any valid entry and looking at their classic leagues is reliable.
+    """
+    for entry_id in [1, 2, 3, 5, 10, 50, 100]:
+        try:
+            data = _get_with_retry(ENTRY_URL.format(entry_id=entry_id))
+            # API may return leagues under different keys depending on season
+            leagues: list = (
+                data.get("leagues", {}).get("classic", [])
+                or data.get("classic_leagues_entered", [])
+            )
+            for lg in leagues:
+                name  = str(lg.get("name",       "")).lower()
+                short = str(lg.get("short_name", "")).lower()
+                if "overall" in name or short == "overall":
+                    return int(lg["id"])
+        except Exception:
+            continue
+    return None
+
+
 def discover_league_id(name: str) -> int | None:
-    """Search FPL public leagues by name (exact match, case-insensitive).
-    Returns league ID or None if not found. Cached in-process."""
+    """Return FPL classic league ID for a given name.
+
+    For the special "overall" key, discovers via a manager's league list
+    (system leagues are not returned by the search API).
+    For country names, tries the search API.
+    Results cached in-process.
+    """
     key = name.lower()
     if key in _LEAGUE_ID_CACHE:
         return _LEAGUE_ID_CACHE[key]
+
+    if key == "overall":
+        result = _discover_overall_league_id()
+        _LEAGUE_ID_CACHE[key] = result
+        return result
+
+    # Country leagues: try search API
     result: int | None = None
     try:
         data = _get_with_retry(LEAGUE_SEARCH_URL, params={"name": name})
         for league in data.get("leagues", []):
             if league.get("name", "").lower() == key:
-                result = league["id"]
+                result = int(league["id"])
                 break
     except Exception:
         pass
