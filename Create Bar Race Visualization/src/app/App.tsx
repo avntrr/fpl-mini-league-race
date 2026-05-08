@@ -57,8 +57,12 @@ export default function App() {
   };
 
   // ── UI phase ──
+  type Mode = "global" | "nation" | "mini";
   const [phase, setPhase]       = useState<"form" | "loading" | "ready" | "error">("form");
+  const [mode, setMode]         = useState<Mode>("mini");
   const [leagueId, setLeagueId] = useState("");
+  const [country, setCountry]   = useState("Indonesia");
+  const [countries, setCountries] = useState<string[]>([]);
   const [topN, setTopN]         = useState(10);
   const [fplData, setFplData]   = useState<FplData | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
@@ -132,12 +136,24 @@ export default function App() {
     setPlay(p => !p);
   }, [gw, playing, totalGws]);
 
+  // ── Load country list on mount ──
+  useEffect(() => {
+    if (captureMode) return;
+    fetch("/api/countries")
+      .then(r => r.json())
+      .then(d => setCountries(d.countries ?? []))
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Fetch ──
   const fetchData = async () => {
-    if (!leagueId.trim()) return;
+    if (mode === "mini" && !leagueId.trim()) return;
     setPhase("loading");
     try {
-      const res  = await fetch(`/api/data?league_id=${leagueId}&top_n=${topN}`);
+      const params = new URLSearchParams({ mode, top_n: String(topN) });
+      if (mode === "mini") params.set("league_id", leagueId);
+      if (mode === "nation") params.set("country", country);
+      const res  = await fetch(`/api/data?${params}`);
       const json = await res.json();
       if (json.error) { setErrorMsg(json.error); setPhase("error"); return; }
       setFplData(json);
@@ -156,7 +172,7 @@ export default function App() {
       const res  = await fetch("/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ league_id: leagueId, top_n: topN, speed: spd, theme }),
+        body: JSON.stringify({ mode, league_id: leagueId, country, top_n: topN, speed: spd, theme }),
       });
       const { job_id, error } = await res.json();
       if (error) { setDlMsg("Error: " + error); setDownloading(false); return; }
@@ -220,6 +236,19 @@ export default function App() {
      Phase: FORM
   ════════════════════════════════════════════════════════════════════════ */
   if (phase === "form") {
+    const TABS: { id: Mode; label: string }[] = [
+      { id: "global", label: "Global" },
+      { id: "nation", label: "Nation" },
+      { id: "mini",   label: "Mini League" },
+    ];
+    const canGenerate = mode === "global" || (mode === "nation" && !!country) || (mode === "mini" && !!leagueId.trim());
+    const inputStyle: React.CSSProperties = {
+      width: "100%", background: "transparent", border: `1px solid ${tk.border}`,
+      borderRadius: 6, padding: "12px 16px", color: tk.text,
+      fontSize: "1rem", fontWeight: 700, outline: "none",
+      boxSizing: "border-box", fontFamily: mono,
+    };
+
     return (
       <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -246,29 +275,76 @@ export default function App() {
           <div style={{ height: 1, marginBottom: 32,
                         background: `linear-gradient(to right, ${tk.accent}60, ${tk.text}20, transparent)` }} />
 
+          {/* Mode tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 24,
+                        background: tk.btnSubtle, borderRadius: 8, padding: 4 }}>
+            {TABS.map(tab => (
+              <button key={tab.id} onClick={() => setMode(tab.id)}
+                style={{
+                  flex: 1, padding: "8px 4px", borderRadius: 6, border: "none",
+                  fontFamily: mono, fontSize: "0.7rem", fontWeight: 700,
+                  cursor: "pointer", transition: "all 0.15s",
+                  backgroundColor: mode === tab.id ? tk.accent    : "transparent",
+                  color:           mode === tab.id ? tk.accentFg  : tk.dim,
+                  letterSpacing: "0.05em",
+                }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            {/* League ID */}
-            <div>
-              <label style={{ display: "block", marginBottom: 8, color: tk.dim,
-                              fontFamily: mono, fontSize: "0.625rem",
-                              letterSpacing: "0.2em", textTransform: "uppercase" }}>
-                League ID
-              </label>
-              <input
-                type="number"
-                value={leagueId}
-                onChange={e => setLeagueId(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && fetchData()}
-                placeholder="e.g. 154649"
-                style={{ width: "100%", background: "transparent", border: `1px solid ${tk.border}`,
-                         borderRadius: 6, padding: "12px 16px", color: tk.text,
-                         fontSize: "1.1rem", fontWeight: 700, outline: "none",
-                         boxSizing: "border-box", fontFamily: mono }}
-              />
-              <p style={{ marginTop: 6, color: tk.dim, fontFamily: mono, fontSize: "0.625rem" }}>
-                URL: /leagues/<span style={{ color: tk.accent }}>XXXXXX</span>/standings/c
-              </p>
-            </div>
+
+            {/* Mode-specific input */}
+            {mode === "mini" && (
+              <div>
+                <label style={{ display: "block", marginBottom: 8, color: tk.dim,
+                                fontFamily: mono, fontSize: "0.625rem",
+                                letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                  League ID
+                </label>
+                <input
+                  type="number"
+                  value={leagueId}
+                  onChange={e => setLeagueId(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && fetchData()}
+                  placeholder="e.g. 154649"
+                  style={inputStyle}
+                />
+                <p style={{ marginTop: 6, color: tk.dim, fontFamily: mono, fontSize: "0.625rem" }}>
+                  URL: /leagues/<span style={{ color: tk.accent }}>XXXXXX</span>/standings/c
+                </p>
+              </div>
+            )}
+
+            {mode === "nation" && (
+              <div>
+                <label style={{ display: "block", marginBottom: 8, color: tk.dim,
+                                fontFamily: mono, fontSize: "0.625rem",
+                                letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                  Country
+                </label>
+                <select
+                  value={country}
+                  onChange={e => setCountry(e.target.value)}
+                  style={{ ...inputStyle, appearance: "none", WebkitAppearance: "none",
+                           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                           backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center",
+                           paddingRight: 36, cursor: "pointer" }}>
+                  {(countries.length ? countries : [country]).map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {mode === "global" && (
+              <div style={{ padding: "12px 16px", borderRadius: 6,
+                            background: tk.btnSubtle, color: tk.dim,
+                            fontFamily: mono, fontSize: "0.75rem", lineHeight: 1.5 }}>
+                Top managers worldwide ranked by total points.
+              </div>
+            )}
 
             {/* Top N */}
             <div>
@@ -290,8 +366,8 @@ export default function App() {
                       fontWeight:      900,
                       cursor:          "pointer",
                       transition:      "all 0.15s",
-                      backgroundColor: topN === n ? tk.accent           : tk.btnSubtle,
-                      color:           topN === n ? tk.accentFg         : tk.dim,
+                      backgroundColor: topN === n ? tk.accent   : tk.btnSubtle,
+                      color:           topN === n ? tk.accentFg : tk.dim,
                     }}>
                     {n}
                   </button>
@@ -299,11 +375,13 @@ export default function App() {
               </div>
             </div>
 
-            <button onClick={fetchData}
+            <button onClick={fetchData} disabled={!canGenerate}
               style={{ width: "100%", padding: "12px 0", borderRadius: 6, border: "none",
-                       background: tk.accent, color: tk.accentFg, fontWeight: 900,
-                       fontSize: "1rem", letterSpacing: "0.15em", textTransform: "uppercase",
-                       cursor: "pointer", fontFamily: condensed }}>
+                       background: canGenerate ? tk.accent : tk.btnSubtle,
+                       color: canGenerate ? tk.accentFg : tk.dim,
+                       fontWeight: 900, fontSize: "1rem", letterSpacing: "0.15em",
+                       textTransform: "uppercase", cursor: canGenerate ? "pointer" : "not-allowed",
+                       fontFamily: condensed, transition: "all 0.15s" }}>
               Generate →
             </button>
           </div>
@@ -597,7 +675,7 @@ export default function App() {
                 style={{ display: "flex", alignItems: "center", gap: 8, background: "none",
                          border: "none", color: tk.dim, cursor: "pointer",
                          fontFamily: mono, fontSize: "0.75rem" }}>
-                <ChevronLeft size={12} /> Change league
+                <ChevronLeft size={12} /> Back
               </button>
               <div style={{ flex: 1 }} />
               {downloading ? (

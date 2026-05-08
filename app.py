@@ -12,7 +12,9 @@ from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-from fetcher import load_or_build
+from fetcher import (
+    load_or_build, load_or_build_timed, discover_league_id, COUNTRY_LIST,
+)
 from renderer import render_race
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -56,19 +58,61 @@ def serve_react(path: str):
     return send_file(REACT_DIST / "index.html")
 
 
+# ── API: daftar negara ────────────────────────────────────────────────────────
+
+@app.route("/api/countries")
+def api_countries():
+    return jsonify({"countries": COUNTRY_LIST})
+
+
+# ── Helpers: resolve mode → (df, league_name, managers_map) ──────────────────
+
+def _resolve_data(
+    mode: str,
+    league_id: int | None,
+    country: str | None,
+    top_n: int,
+    force_refresh: bool = False,
+) -> tuple:
+    """Return (df, league_name, managers_map) for any mode, or raise ValueError."""
+    if mode == "global":
+        lid = discover_league_id("Overall")
+        if lid is None:
+            raise ValueError("FPL global overall league not found. Try again later.")
+        label = f"FPL Global Top {top_n}"
+        return load_or_build_timed(lid, label, f"global_{lid}")
+
+    if mode == "nation":
+        if not country:
+            raise ValueError("Country is required for Nation mode.")
+        lid = discover_league_id(country)
+        if lid is None:
+            raise ValueError(f"FPL league for '{country}' not found. Try again later.")
+        label = f"FPL {country} Top {top_n}"
+        return load_or_build_timed(lid, label, f"nation_{lid}")
+
+    # default: mini league
+    if not league_id:
+        raise ValueError("League ID is required.")
+    return load_or_build(league_id, OUTPUT_DIR, force_refresh)
+
+
 # ── API: ambil data FPL ───────────────────────────────────────────────────────
 
 @app.route("/api/data")
 def api_data():
     """Fetch + cache data FPL, return JSON untuk React app."""
+    mode      = request.args.get("mode", "mini")
     league_id = request.args.get("league_id", type=int)
-    if not league_id:
-        return jsonify({"error": "League ID is required."}), 400
+    country   = request.args.get("country", "").strip() or None
+    top_n     = request.args.get("top_n", 10, type=int)
 
     try:
-        df, league_name, managers_map = load_or_build(
-            league_id, OUTPUT_DIR, force_refresh=False
+        df, league_name, managers_map = _resolve_data(
+            mode, league_id, country, top_n
         )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except SystemExit:
         return jsonify({"error": "Invalid League ID or no gameweek data available."}), 400
     except Exception as e:
@@ -179,25 +223,31 @@ def api_rank():
 @app.route("/generate", methods=["POST"])
 def generate():
     """Trigger background render MP4."""
-    data      = request.get_json() or {}
-    raw_id    = data.get("league_id", "")
-    top_n     = int(data.get("top_n", 10))
-    force     = bool(data.get("force_refresh", False))
-    speed     = int(data.get("speed", 0))   # 0=1x, 1=2x, 2=4x
-    theme     = data.get("theme", "dark")   # "dark" | "light"
+    data    = request.get_json() or {}
+    mode    = data.get("mode", "mini")
+    raw_id  = data.get("league_id", "")
+    country = (data.get("country", "") or "").strip() or None
+    top_n   = int(data.get("top_n", 10))
+    force   = bool(data.get("force_refresh", False))
+    speed   = int(data.get("speed", 0))
+    theme   = data.get("theme", "dark")
     if theme not in ("dark", "light"):
         theme = "dark"
 
-    try:
-        league_id = int(str(raw_id).strip())
-    except (ValueError, TypeError):
-        return jsonify({"error": "League ID must be a number."}), 400
+    league_id: int | None = None
+    if mode == "mini":
+        try:
+            league_id = int(str(raw_id).strip())
+        except (ValueError, TypeError):
+            return jsonify({"error": "League ID must be a number."}), 400
 
     job_id = uuid.uuid4().hex[:8]
     jobs[job_id] = {"status": "pending", "message": "Starting..."}
 
     threading.Thread(
-        target=_run_job, args=(job_id, league_id, top_n, force, speed, theme), daemon=True
+        target=_run_job,
+        args=(job_id, mode, league_id, country, top_n, force, speed, theme),
+        daemon=True,
     ).start()
 
     return jsonify({"job_id": job_id})
@@ -221,7 +271,16 @@ def download(filename: str):
     return send_file(filepath, as_attachment=True, download_name=filename)
 
 
-def _run_job(job_id: str, league_id: int, top_n: int, force_refresh: bool, speed: int = 0, theme: str = "dark") -> None:
+def _run_job(
+    job_id: str,
+    mode: str,
+    league_id: int | None,
+    country: str | None,
+    top_n: int,
+    force_refresh: bool,
+    speed: int = 0,
+    theme: str = "dark",
+) -> None:
     """Worker render MP4 in a separate thread."""
     speed_labels = ["1x", "2x", "4x"]
     spd_label    = speed_labels[max(0, min(speed, 2))]
@@ -229,11 +288,20 @@ def _run_job(job_id: str, league_id: int, top_n: int, force_refresh: bool, speed
     try:
         jobs[job_id] = {"status": "running", "message": "Fetching data from FPL..."}
 
-        df, league_name, managers_map = load_or_build(league_id, OUTPUT_DIR, force_refresh)
+        df, league_name, managers_map = _resolve_data(
+            mode, league_id, country, top_n, force_refresh
+        )
 
         jobs[job_id]["message"] = f"Rendering {len(df)} GW, top {top_n}, speed {spd_label}..."
 
-        output_filename = f"race_{league_id}_top{top_n}_spd{spd_label}_{theme}.mp4"
+        # Unique filename per mode
+        if mode == "global":
+            slug = f"global_top{top_n}"
+        elif mode == "nation":
+            slug = f"nation_{(country or 'unknown').lower().replace(' ', '_')}_top{top_n}"
+        else:
+            slug = f"mini_{league_id}_top{top_n}"
+        output_filename = f"race_{slug}_spd{spd_label}_{theme}.mp4"
         output_path     = OUTPUT_DIR / output_filename
 
         def progress(current: int, total: int) -> None:
@@ -258,8 +326,9 @@ def _run_job(job_id: str, league_id: int, top_n: int, force_refresh: bool, speed
             "league_name": league_name,
         }
 
-    except SystemExit:
-        jobs[job_id] = {"status": "error", "message": "Invalid League ID or no gameweek data available."}
+    except (SystemExit, ValueError) as e:
+        msg = str(e) if str(e) else "Invalid League ID or no gameweek data available."
+        jobs[job_id] = {"status": "error", "message": msg}
     except Exception as e:
         jobs[job_id] = {"status": "error", "message": str(e)}
 

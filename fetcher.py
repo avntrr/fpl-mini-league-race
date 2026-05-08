@@ -14,12 +14,76 @@ import pandas as pd
 import requests
 
 BASE = "https://fantasy.premierleague.com/api"
-STANDINGS_URL = BASE + "/leagues-classic/{league_id}/standings/"
-HISTORY_URL = BASE + "/entry/{entry_id}/history/"
+STANDINGS_URL  = BASE + "/leagues-classic/{league_id}/standings/"
+HISTORY_URL    = BASE + "/entry/{entry_id}/history/"
+LEAGUE_SEARCH_URL = BASE + "/leagues-classic/search/"
 
 REQUEST_DELAY = 0.3
 MAX_RETRIES = 3
 TIMEOUT = 15
+
+# ── In-memory timed cache (1 hour) for Global & Nation ───────────────────────
+_TIMED_CACHE: dict[str, tuple[object, float]] = {}
+TIMED_CACHE_TTL = 3600  # seconds
+
+def _timed_get(key: str) -> object | None:
+    if key in _TIMED_CACHE:
+        val, ts = _TIMED_CACHE[key]
+        if time.time() - ts < TIMED_CACHE_TTL:
+            return val
+    return None
+
+def _timed_set(key: str, val: object) -> None:
+    _TIMED_CACHE[key] = (val, time.time())
+
+# ── League ID discovery (cached) ──────────────────────────────────────────────
+_LEAGUE_ID_CACHE: dict[str, int | None] = {}
+
+def discover_league_id(name: str) -> int | None:
+    """Search FPL public leagues by name (exact match, case-insensitive).
+    Returns league ID or None if not found. Cached in-process."""
+    key = name.lower()
+    if key in _LEAGUE_ID_CACHE:
+        return _LEAGUE_ID_CACHE[key]
+    result: int | None = None
+    try:
+        data = _get_with_retry(LEAGUE_SEARCH_URL, params={"name": name})
+        for league in data.get("leagues", []):
+            if league.get("name", "").lower() == key:
+                result = league["id"]
+                break
+    except Exception:
+        pass
+    _LEAGUE_ID_CACHE[key] = result
+    return result
+
+# Countries offered in the Nation dropdown.
+# These match FPL's public classic league names exactly.
+COUNTRY_LIST: list[str] = [
+    "Afghanistan", "Albania", "Algeria", "Angola", "Argentina", "Armenia",
+    "Australia", "Austria", "Azerbaijan", "Bahrain", "Bangladesh", "Belarus",
+    "Belgium", "Bolivia", "Bosnia and Herzegovina", "Brazil", "Bulgaria",
+    "Cambodia", "Cameroon", "Canada", "Chile", "China", "Colombia",
+    "Costa Rica", "Croatia", "Cyprus", "Czech Republic", "Denmark",
+    "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "England",
+    "Estonia", "Ethiopia", "Finland", "France", "Georgia", "Germany",
+    "Ghana", "Greece", "Guatemala", "Honduras", "Hong Kong", "Hungary",
+    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel",
+    "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya",
+    "Kosovo", "Kuwait", "Latvia", "Lebanon", "Libya", "Lithuania",
+    "Luxembourg", "Malaysia", "Malta", "Mexico", "Moldova", "Montenegro",
+    "Morocco", "Mozambique", "Myanmar", "Nepal", "Netherlands",
+    "New Zealand", "Nicaragua", "Nigeria", "North Macedonia", "Northern Ireland",
+    "Norway", "Oman", "Pakistan", "Palestine", "Panama", "Paraguay", "Peru",
+    "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia",
+    "Rwanda", "Saudi Arabia", "Scotland", "Senegal", "Serbia", "Singapore",
+    "Slovakia", "Slovenia", "South Africa", "South Korea", "Spain",
+    "Sri Lanka", "Sudan", "Sweden", "Switzerland", "Syria", "Taiwan",
+    "Tanzania", "Thailand", "Trinidad and Tobago", "Tunisia", "Turkey",
+    "Uganda", "Ukraine", "United Arab Emirates", "United States",
+    "Uruguay", "Uzbekistan", "Venezuela", "Vietnam", "Wales",
+    "Yemen", "Zambia", "Zimbabwe",
+]
 
 
 class Manager(TypedDict):
@@ -152,6 +216,32 @@ def build_dataframe(managers: list[Manager]) -> pd.DataFrame:
     df.index.name = "GW"
     df = df.sort_index().ffill().fillna(0)
     return df
+
+
+def load_or_build_timed(
+    league_id: int,
+    label: str,
+    cache_key: str,
+) -> tuple[pd.DataFrame, str, dict[str, str]]:
+    """Fetch standings for Global or Nation modes with 1-hour in-memory cache.
+
+    Args:
+        league_id:  FPL classic league ID
+        label:      League name to show in UI (e.g. "FPL Global Top 20")
+        cache_key:  Unique string key for this dataset
+    """
+    cached = _timed_get(cache_key)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    print(f"🌐 Fetching standings for '{label}' (league {league_id})...")
+    _, managers = fetch_standings(league_id)
+    print(f"  → {len(managers)} managers found. Fetching history...")
+    df = build_dataframe(managers)
+    managers_map: dict[str, str] = {m["team_name"]: m["manager_name"] for m in managers}
+    result = (df, label, managers_map)
+    _timed_set(cache_key, result)
+    return result
 
 
 def load_or_build(
