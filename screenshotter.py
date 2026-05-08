@@ -188,7 +188,7 @@ def render_race(
 
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
             # 540×960 logical px × device_scale_factor 2 = 1080×1920 screenshot (Full HD 9:16)
             page    = browser.new_page(viewport={"width": 540, "height": 960}, device_scale_factor=2)
 

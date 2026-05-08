@@ -166,12 +166,19 @@ export default function App() {
         setDlMsg(s.message);
         if (s.status === "done") {
           clearInterval(poll);
-          window.location.href = `/download/${s.filename}`;
           setDownloading(false);
           setDlMsg("");
+          // Use <a download> for reliable mobile download
+          const a = document.createElement("a");
+          a.href = `/download/${s.filename}`;
+          a.download = s.filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
         } else if (s.status === "error") {
           clearInterval(poll);
           setDownloading(false);
+          setDlMsg(`❌ ${s.message}`);
         }
       }, 2000);
     } catch {
@@ -599,14 +606,22 @@ export default function App() {
                   <Loader2 size={11} className="animate-spin" />{dlMsg}
                 </span>
               ) : (
-                <button onClick={downloadMp4}
-                  style={{ display: "flex", alignItems: "center", gap: 8,
-                           padding: "7px 14px", borderRadius: 6, border: "none",
-                           background: tk.btnSubtle, color: tk.textSub,
-                           fontFamily: mono, fontSize: "0.75rem", fontWeight: 700,
-                           textTransform: "uppercase", letterSpacing: "0.05em", cursor: "pointer" }}>
-                  <Download size={12} /> Download MP4
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                  <button onClick={downloadMp4}
+                    style={{ display: "flex", alignItems: "center", gap: 8,
+                             padding: "7px 14px", borderRadius: 6, border: "none",
+                             background: tk.btnSubtle, color: tk.textSub,
+                             fontFamily: mono, fontSize: "0.75rem", fontWeight: 700,
+                             textTransform: "uppercase", letterSpacing: "0.05em", cursor: "pointer" }}>
+                    <Download size={12} /> Download MP4
+                  </button>
+                  {dlMsg && (
+                    <span style={{ fontFamily: mono, fontSize: "0.6rem",
+                                   color: dlMsg.startsWith("❌") ? "#f87171" : tk.dim }}>
+                      {dlMsg}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </>
