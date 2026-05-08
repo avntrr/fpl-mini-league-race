@@ -39,62 +39,95 @@ def _timed_set(key: str, val: object) -> None:
 # ── League ID discovery (cached) ──────────────────────────────────────────────
 ENTRY_URL = BASE + "/entry/{entry_id}/"
 
-_LEAGUE_ID_CACHE: dict[str, int | None] = {}
+# Confirmed via FPL API inspection (2025/26 season)
+GLOBAL_OVERALL_LEAGUE_ID = 314
+
+# Known country league IDs (confirmed from API, stable across seasons)
+_KNOWN_COUNTRY_IDS: dict[str, int] = {
+    "australia":     33,
+    "cyprus":        76,
+    "denmark":       78,
+    "georgia":       99,
+    "croatia":       117,
+    "indonesia":     121,
+    "ireland":       124,
+    "netherlands":   172,
+    "nigeria":       177,
+    "norway":        181,
+    "sweden":        226,
+    "england":       261,
+    "scotland":      217,
+    "wales":         255,
+    "northern ireland": 183,
+}
+
+_LEAGUE_ID_CACHE: dict[str, int | None] = {**_KNOWN_COUNTRY_IDS, "overall": GLOBAL_OVERALL_LEAGUE_ID}
+_COUNTRY_DISCOVERY_DONE = False  # true after we've sampled Overall standings
 
 
-def _discover_overall_league_id() -> int | None:
-    """Find the FPL "Overall" classic league ID by inspecting a known manager's leagues.
+def _discover_country_leagues() -> None:
+    """Enrich _LEAGUE_ID_CACHE by sampling the top managers from the Overall league.
 
-    Every FPL manager is auto-enrolled in the global "Overall" league, so
-    fetching any valid entry and looking at their classic leagues is reliable.
+    Fetches pages 1-10 of Overall standings (up to 500 entries), then fetches
+    each entry's profile to extract their country + country league ID.
+    Results are merged into _LEAGUE_ID_CACHE.  Runs once per process.
     """
-    for entry_id in [1, 2, 3, 5, 10, 50, 100]:
+    global _COUNTRY_DISCOVERY_DONE
+    if _COUNTRY_DISCOVERY_DONE:
+        return
+    _COUNTRY_DISCOVERY_DONE = True  # mark before fetching to avoid parallel calls
+
+    print("🌍 Discovering country league IDs from Overall standings...")
+    entry_ids: list[int] = []
+    for page in range(1, 11):
         try:
-            data = _get_with_retry(ENTRY_URL.format(entry_id=entry_id))
-            # API may return leagues under different keys depending on season
-            leagues: list = (
-                data.get("leagues", {}).get("classic", [])
-                or data.get("classic_leagues_entered", [])
+            data = _get_with_retry(
+                STANDINGS_URL.format(league_id=GLOBAL_OVERALL_LEAGUE_ID),
+                params={"page_standings": page},
             )
-            for lg in leagues:
-                name  = str(lg.get("name",       "")).lower()
-                short = str(lg.get("short_name", "")).lower()
-                if "overall" in name or short == "overall":
-                    return int(lg["id"])
+            for row in data.get("standings", {}).get("results", []):
+                entry_ids.append(row["entry"])
+            if not data.get("standings", {}).get("has_next"):
+                break
+        except Exception:
+            break
+
+    found = 0
+    for eid in entry_ids:
+        try:
+            edata  = _get_with_retry(ENTRY_URL.format(entry_id=eid))
+            region = edata.get("player_region_name", "")
+            rkey   = region.lower()
+            if not region or rkey in _LEAGUE_ID_CACHE:
+                continue
+            classics = edata.get("leagues", {}).get("classic", [])
+            for lg in classics:
+                if lg.get("name", "").lower() == rkey:
+                    _LEAGUE_ID_CACHE[rkey] = int(lg["id"])
+                    found += 1
+                    print(f"  → {region}: {lg['id']}")
+                    break
+            time.sleep(REQUEST_DELAY)
         except Exception:
             continue
-    return None
+
+    print(f"🌍 Country discovery done — {found} new countries found.")
 
 
 def discover_league_id(name: str) -> int | None:
-    """Return FPL classic league ID for a given name.
+    """Return FPL classic league ID for a given name (case-insensitive).
 
-    For the special "overall" key, discovers via a manager's league list
-    (system leagues are not returned by the search API).
-    For country names, tries the search API.
-    Results cached in-process.
+    Checks hardcoded known IDs first, then triggers dynamic discovery
+    (sampling Overall standings) if the country is not yet known.
+    Results are cached in-process.
     """
     key = name.lower()
     if key in _LEAGUE_ID_CACHE:
         return _LEAGUE_ID_CACHE[key]
 
-    if key == "overall":
-        result = _discover_overall_league_id()
-        _LEAGUE_ID_CACHE[key] = result
-        return result
-
-    # Country leagues: try search API
-    result: int | None = None
-    try:
-        data = _get_with_retry(LEAGUE_SEARCH_URL, params={"name": name})
-        for league in data.get("leagues", []):
-            if league.get("name", "").lower() == key:
-                result = int(league["id"])
-                break
-    except Exception:
-        pass
-    _LEAGUE_ID_CACHE[key] = result
-    return result
+    # Unknown country — run discovery and try again
+    _discover_country_leagues()
+    return _LEAGUE_ID_CACHE.get(key)
 
 # Countries offered in the Nation dropdown.
 # These match FPL's public classic league names exactly.
