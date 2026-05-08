@@ -201,6 +201,7 @@ def render_race(
             _BG = {"dark": "#0a0e1a", "light": "#f8fafc"}
             page.add_style_tag(content=f"""
               html, body {{
+                zoom: 1 !important;
                 width: 100vw; height: 100vh;
                 margin: 0; padding: 0;
                 overflow: hidden;
