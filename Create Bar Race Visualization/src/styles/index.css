@@ -1,3 +1,10 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* Mobile: scale to 85% so the full UI fits in one screen */
+@media (max-width: 640px) {
+  html {
+    zoom: 0.85;
+  }
+}
