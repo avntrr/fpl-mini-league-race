@@ -224,6 +224,7 @@ export default function App() {
   const maxTot   = sorted[0]?.total ?? 1;
   const CH       = sorted.length * (SH + SG) - SG;
   const rankOf   = useMemo(() => Object.fromEntries(sorted.map((m, i) => [m.id, i])), [sorted]);
+  const gwInt    = Math.floor(gw);
 
   // Rank at previous integer GW — for rank-change indicators (↑↓●)
   const prevFrame = useMemo(() => {
@@ -238,7 +239,6 @@ export default function App() {
     const ps = [...prevFrame].sort((a, b) => b.total - a.total).slice(0, topN);
     return Object.fromEntries(ps.map((m, i) => [m.id, i]));
   }, [prevFrame, topN]);
-  const gwInt    = Math.floor(gw);
   const isFinale = gw >= totalGws;
   const winner   = isFinale ? sorted[0] : null;
   const progWidth = `${(gw / totalGws) * 100}%`;
