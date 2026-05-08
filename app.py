@@ -4,6 +4,7 @@ Serve React app (dist/) sebagai frontend + API endpoints untuk data FPL.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import threading
 import uuid
@@ -288,4 +289,5 @@ def _build_react_if_needed() -> None:
 
 if __name__ == "__main__":
     _build_react_if_needed()
-    app.run(debug=False, host="127.0.0.1", port=8080, threaded=True)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(debug=False, host="0.0.0.0", port=port, threaded=True)

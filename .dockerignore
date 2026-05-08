@@ -1,0 +1,12 @@
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+output/
+.env
+
+# React build artifacts (built inside Docker)
+Create Bar Race Visualization/node_modules/
+Create Bar Race Visualization/dist/
+Create Bar Race Visualization/.vite/
