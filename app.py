@@ -14,6 +14,7 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from fetcher import (
     load_or_build, load_or_build_timed, discover_league_id, COUNTRY_LIST,
+    fetch_entry_regions,
 )
 from renderer import render_race
 
@@ -74,13 +75,17 @@ def _resolve_data(
     top_n: int,
     force_refresh: bool = False,
 ) -> tuple:
-    """Return (df, league_name, managers_map) for any mode, or raise ValueError."""
+    """Return (df, league_name, managers_map, regions_map) for any mode.
+
+    regions_map is {team_name: iso_code_short} for Global mode, {} otherwise.
+    Raises ValueError for invalid inputs.
+    """
     if mode == "global":
         lid = discover_league_id("Overall")
         if lid is None:
             raise ValueError("FPL global overall league not found. Try again later.")
         label = f"FPL Global Top {top_n}"
-        return load_or_build_timed(lid, label, f"global_{lid}")
+        return load_or_build_timed(lid, label, f"global_{lid}", include_regions=True)
 
     if mode == "nation":
         if not country:
@@ -89,12 +94,14 @@ def _resolve_data(
         if lid is None:
             raise ValueError(f"FPL league for '{country}' not found. Try again later.")
         label = f"FPL {country} Top {top_n}"
-        return load_or_build_timed(lid, label, f"nation_{lid}")
+        df, lname, mm, _ = load_or_build_timed(lid, label, f"nation_{lid}")
+        return df, lname, mm, {}
 
     # default: mini league
     if not league_id:
         raise ValueError("League ID is required.")
-    return load_or_build(league_id, OUTPUT_DIR, force_refresh)
+    df, lname, mm = load_or_build(league_id, OUTPUT_DIR, force_refresh)
+    return df, lname, mm, {}
 
 
 # ── API: ambil data FPL ───────────────────────────────────────────────────────
@@ -108,7 +115,7 @@ def api_data():
     top_n     = request.args.get("top_n", 10, type=int)
 
     try:
-        df, league_name, managers_map = _resolve_data(
+        df, league_name, managers_map, regions_map = _resolve_data(
             mode, league_id, country, top_n
         )
     except ValueError as e:
@@ -129,8 +136,8 @@ def api_data():
     managers = [
         {
             "id":    str(i),
-            "name":  managers_map.get(t, t),   # manager name (warna)
-            "team":  t,                         # team name (dim)
+            "name":  managers_map.get(t, t),
+            "team":  t,
             "color": PALETTE[i % len(PALETTE)],
         }
         for i, t in enumerate(teams)
@@ -139,13 +146,16 @@ def api_data():
     scores    = [[int(df.loc[gw, t])    for gw in gws] for t in teams]
     gw_scores = [[int(df_gw.loc[gw, t]) for gw in gws] for t in teams]
 
-    return jsonify({
+    payload: dict = {
         "leagueName": league_name,
         "totalGws":   len(gws),
         "managers":   managers,
         "scores":     scores,
         "gwScores":   gw_scores,
-    })
+    }
+    if regions_map:
+        payload["regionsMap"] = regions_map
+    return jsonify(payload)
 
 
 # ── API: global rank journey untuk satu manager ──────────────────────────────
@@ -288,7 +298,7 @@ def _run_job(
     try:
         jobs[job_id] = {"status": "running", "message": "Fetching data from FPL..."}
 
-        df, league_name, managers_map = _resolve_data(
+        df, league_name, managers_map, regions_map = _resolve_data(
             mode, league_id, country, top_n, force_refresh
         )
 
@@ -314,6 +324,7 @@ def _run_job(
             top_n=top_n,
             league_name=league_name,
             managers_map=managers_map,
+            regions_map=regions_map,
             progress_cb=progress,
             speed=speed,
             theme=theme,

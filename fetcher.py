@@ -290,17 +290,36 @@ def build_dataframe(managers: list[Manager]) -> pd.DataFrame:
     return df
 
 
+def fetch_entry_regions(managers: list[Manager]) -> dict[str, str]:
+    """Fetch ISO country code (2-letter) for each manager.
+
+    Returns {team_name: iso_code_short}, e.g. {"Bulgogi": "ID"}.
+    Used only for Global mode to show flag emojis.
+    """
+    result: dict[str, str] = {}
+    for m in managers:
+        try:
+            data = _get_with_retry(ENTRY_URL.format(entry_id=m["entry_id"]))
+            iso  = data.get("player_region_iso_code_short", "")
+            if iso:
+                result[m["team_name"]] = iso
+            time.sleep(REQUEST_DELAY)
+        except Exception:
+            continue
+    return result
+
+
 def load_or_build_timed(
     league_id: int,
     label: str,
     cache_key: str,
-) -> tuple[pd.DataFrame, str, dict[str, str]]:
+    include_regions: bool = False,
+) -> tuple[pd.DataFrame, str, dict[str, str], dict[str, str]]:
     """Fetch standings for Global or Nation modes with 1-hour in-memory cache.
 
-    Args:
-        league_id:  FPL classic league ID
-        label:      League name to show in UI (e.g. "FPL Global Top 20")
-        cache_key:  Unique string key for this dataset
+    Returns:
+        (df, label, managers_map, regions_map)
+        regions_map is {team_name: iso_code_short} when include_regions=True, else {}.
     """
     cached = _timed_get(cache_key)
     if cached is not None:
@@ -311,7 +330,11 @@ def load_or_build_timed(
     print(f"  → {len(managers)} managers found. Fetching history...")
     df = build_dataframe(managers)
     managers_map: dict[str, str] = {m["team_name"]: m["manager_name"] for m in managers}
-    result = (df, label, managers_map)
+    regions_map: dict[str, str] = {}
+    if include_regions:
+        print(f"  → Fetching country flags...")
+        regions_map = fetch_entry_regions(managers)
+    result: tuple = (df, label, managers_map, regions_map)
     _timed_set(cache_key, result)
     return result
 

@@ -63,6 +63,7 @@ def _write_fpl_data(
     managers_map: dict[str, str],
     top_n: int,
     dest: Path,
+    regions_map: "dict[str, str] | None" = None,
 ) -> None:
     df_gw  = df.diff().fillna(df.iloc[[0]])
     gws    = df.index.tolist()
@@ -79,14 +80,17 @@ def _write_fpl_data(
     scores    = [[int(df_r.loc[gw, t]) for gw in gws] for t in teams]
     gw_scores = [[int(dg_r.loc[gw, t]) for gw in gws] for t in teams]
 
-    dest.write_text(json.dumps({
+    payload = {
         "leagueName": league_name,
         "totalGws":   len(gws),
         "topN":       top_n,
         "managers":   managers,
         "scores":     scores,
         "gwScores":   gw_scores,
-    }))
+    }
+    if regions_map:
+        payload["regionsMap"] = regions_map
+    dest.write_text(json.dumps(payload))
 
 
 def _build_react_if_needed() -> None:
@@ -143,6 +147,7 @@ def render_race(
     top_n: int = 10,
     league_name: str = "FPL League",
     managers_map: "dict[str, str] | None" = None,
+    regions_map: "dict[str, str] | None" = None,
     progress_cb: "callable[[int, int], None] | None" = None,
     speed: int = 0,
     theme: str = "dark",
@@ -167,7 +172,7 @@ def render_race(
     _build_react_if_needed()
 
     # 2. Tulis fpl-data.json ke dist/
-    _write_fpl_data(df, league_name, managers_map or {}, top_n, REACT_DIST / "fpl-data.json")
+    _write_fpl_data(df, league_name, managers_map or {}, top_n, REACT_DIST / "fpl-data.json", regions_map or {})
 
     # 3. Start static HTTP server
     port   = _free_port()

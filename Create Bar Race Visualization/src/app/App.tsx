@@ -20,7 +20,16 @@ interface FplData {
   managers: Manager[];
   scores: number[][];    // [managerIdx][gwIdx] cumulative points
   gwScores: number[][];  // [managerIdx][gwIdx] per-GW points
+  regionsMap?: Record<string, string>; // team_name → ISO 2-letter code (Global only)
 }
+
+/** Convert 2-letter ISO code to flag emoji. "ID" → 🇮🇩 */
+const isoToFlag = (iso: string): string => {
+  if (!iso || iso.length !== 2) return "";
+  return iso.toUpperCase().split("").map(c =>
+    String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
+  ).join("");
+};
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 const SH = 58;
@@ -579,6 +588,11 @@ export default function App() {
                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {m.team}
                     </span>
+                    {fplData?.regionsMap?.[m.team] && (
+                      <span style={{ fontSize: "0.85rem", flexShrink: 0, lineHeight: 1 }}>
+                        {isoToFlag(fplData.regionsMap[m.team])}
+                      </span>
+                    )}
                   </div>
 
                   {/* Bar + total score — same row so score is vertically aligned with bar */}
