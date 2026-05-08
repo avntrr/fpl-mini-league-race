@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion } from "motion/react";
-import { Play, Pause, RotateCcw, Trophy, Download, Loader2, ChevronLeft, Sun, Moon } from "lucide-react";
+import { Play, Pause, RotateCcw, Trophy, Download, Loader2, ChevronLeft, Sun, Moon, ChevronUp, ChevronDown } from "lucide-react";
 import { Link } from "react-router";
 import { THEMES, THEME_KEY } from "./theme";
 import type { Theme } from "./theme";
@@ -224,6 +224,20 @@ export default function App() {
   const maxTot   = sorted[0]?.total ?? 1;
   const CH       = sorted.length * (SH + SG) - SG;
   const rankOf   = useMemo(() => Object.fromEntries(sorted.map((m, i) => [m.id, i])), [sorted]);
+
+  // Rank at previous integer GW — for rank-change indicators (↑↓●)
+  const prevFrame = useMemo(() => {
+    if (!fplData) return [];
+    const prevGw = Math.max(1, gwInt - 1);
+    return fplData.managers.map((m, i) => ({
+      id:    m.id,
+      total: fplData.scores[i]?.[prevGw - 1] ?? 0,
+    }));
+  }, [gwInt, fplData]);
+  const prevRankOf = useMemo(() => {
+    const ps = [...prevFrame].sort((a, b) => b.total - a.total).slice(0, topN);
+    return Object.fromEntries(ps.map((m, i) => [m.id, i]));
+  }, [prevFrame, topN]);
   const gwInt    = Math.floor(gw);
   const isFinale = gw >= totalGws;
   const winner   = isFinale ? sorted[0] : null;
@@ -513,13 +527,16 @@ export default function App() {
             const isTop        = rank === 0;
             const displayTotal = Math.round(m.total);
 
+            const prevRank  = prevRankOf[m.id] ?? rank;
+            const rankDelta = prevRank - rank; // positive = moved up (better), negative = dropped
+
             return (
               <motion.div key={m.id}
                 initial={false}
                 animate={{ y }}
                 transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
                 style={{ position: "absolute", top: 0, left: 0, right: 0, height: SH,
-                         display: "flex", alignItems: "center", gap: 12 }}>
+                         display: "flex", alignItems: "center", gap: 8 }}>
 
                 {/* Rank badge */}
                 <div style={{
@@ -529,6 +546,24 @@ export default function App() {
                   transition: "color 0.5s",
                 }}>
                   {rank < 3 ? RANK_GLYPHS[rank] : String(rank + 1)}
+                </div>
+
+                {/* Rank-change indicator */}
+                <div style={{
+                  width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  backgroundColor: rankDelta > 0 ? "#16a34a"
+                                 : rankDelta < 0 ? "#dc2626"
+                                 : tk.surface,
+                  transition: "background-color 0.4s",
+                }}>
+                  {rankDelta > 0
+                    ? <ChevronUp  size={11} color="#fff" strokeWidth={3} />
+                    : rankDelta < 0
+                    ? <ChevronDown size={11} color="#fff" strokeWidth={3} />
+                    : <span style={{ width: 5, height: 5, borderRadius: "50%",
+                                     backgroundColor: tk.dim, display: "block" }} />
+                  }
                 </div>
 
                 {/* Name + bar + score */}
