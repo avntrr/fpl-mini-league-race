@@ -1,0 +1,612 @@
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { motion } from "motion/react";
+import { Play, Pause, RotateCcw, Trophy, Download, Loader2, ChevronLeft, Sun, Moon } from "lucide-react";
+import { Link } from "react-router";
+import { THEMES, THEME_KEY } from "./theme";
+import type { Theme } from "./theme";
+
+/* ── Types ───────────────────────────────────────────────────────────────── */
+interface Manager {
+  id: string;
+  name: string;   // manager name (coloured)
+  team: string;   // team name (dim)
+  color: string;
+}
+
+interface FplData {
+  leagueName: string;
+  totalGws: number;
+  topN?: number;
+  managers: Manager[];
+  scores: number[][];    // [managerIdx][gwIdx] cumulative points
+  gwScores: number[][];  // [managerIdx][gwIdx] per-GW points
+}
+
+/* ── Constants ───────────────────────────────────────────────────────────── */
+const SH = 58;
+const SG = 9;
+const FRAME_MS = 33;
+
+const SPEEDS = [
+  { label: "1×", stepsPerGw: 26 },
+  { label: "2×", stepsPerGw: 13 },
+  { label: "4×", stepsPerGw:  5 },
+];
+
+const RANK_COLORS = ["#00ff87", "#ffd700", "#cd853f"];
+const RANK_GLYPHS = ["①", "②", "③"];
+const TOP_N_OPTIONS = [5, 8, 10, 15, 20];
+
+/* ── App ─────────────────────────────────────────────────────────────────── */
+export default function App() {
+  // ── Capture mode (Playwright screenshot renderer) ──
+  const captureMode = typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("capture");
+
+  // ── Theme — in capture mode read from URL (?theme=light), else localStorage ──
+  const [theme, setTheme] = useState<Theme>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("capture")) return (params.get("theme") as Theme) ?? "dark";
+    return (localStorage.getItem(THEME_KEY) as Theme) ?? "dark";
+  });
+  const tk = THEMES[theme];
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem(THEME_KEY, next);
+  };
+
+  // ── UI phase ──
+  const [phase, setPhase]       = useState<"form" | "loading" | "ready" | "error">("form");
+  const [leagueId, setLeagueId] = useState("");
+  const [topN, setTopN]         = useState(10);
+  const [fplData, setFplData]   = useState<FplData | null>(null);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  // ── Animation ──
+  const [gw, setGw]             = useState<number>(1);
+  const [_seekTick, setSeekTick] = useState(0);
+  const [playing, setPlay]      = useState(false);
+  const [spd, setSpd]           = useState(0);
+  const tick                    = useRef<ReturnType<typeof setInterval>>();
+
+  // ── Download state ──
+  const [downloading, setDownloading] = useState(false);
+  const [dlMsg, setDlMsg]             = useState("");
+
+  const totalGws = fplData?.totalGws ?? 38;
+
+  // ── Capture mode: load fpl-data.json + expose window.__FPL_SEEK ──
+  useEffect(() => {
+    if (!captureMode) return;
+    fetch("/fpl-data.json")
+      .then(r => r.json())
+      .then((d: FplData & { topN?: number }) => {
+        setFplData(d);
+        setTopN(d.topN ?? 10);
+        setPhase("ready");
+      })
+      .catch(() => setPhase("error"));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!captureMode) return;
+    (window as any).__FPL_SEEK = (g: number) => {
+      setSeekTick(t => t + 1);
+      setGw(g);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!captureMode) return;
+    (window as any).__FPL_READY = true;
+  });
+
+  useEffect(() => {
+    if (fplData) { setGw(1); setPlay(false); }
+  }, [fplData]);
+
+  // ── Playback timer ──
+  useEffect(() => {
+    clearInterval(tick.current);
+    if (!playing || !fplData || captureMode) return;
+    const gwStep = 1 / SPEEDS[spd].stepsPerGw;
+    tick.current = setInterval(() =>
+      setGw(g => {
+        if (g >= totalGws) { setPlay(false); return totalGws; }
+        return Math.min(totalGws, g + gwStep);
+      }),
+      FRAME_MS
+    );
+    return () => clearInterval(tick.current);
+  }, [playing, spd, fplData, totalGws, captureMode]);
+
+  const toggle = useCallback(() => {
+    if (gw >= totalGws && !playing) { setGw(1); setPlay(true); return; }
+    setPlay(p => !p);
+  }, [gw, playing, totalGws]);
+
+  // ── Fetch ──
+  const fetchData = async () => {
+    if (!leagueId.trim()) return;
+    setPhase("loading");
+    try {
+      const res  = await fetch(`/api/data?league_id=${leagueId}&top_n=${topN}`);
+      const json = await res.json();
+      if (json.error) { setErrorMsg(json.error); setPhase("error"); return; }
+      setFplData(json);
+      setPhase("ready");
+    } catch {
+      setErrorMsg("Failed to connect to server.");
+      setPhase("error");
+    }
+  };
+
+  // ── Download MP4 ──
+  const downloadMp4 = async () => {
+    setDownloading(true);
+    setDlMsg("Starting render...");
+    try {
+      const res  = await fetch("/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ league_id: leagueId, top_n: topN, speed: spd, theme }),
+      });
+      const { job_id, error } = await res.json();
+      if (error) { setDlMsg("Error: " + error); setDownloading(false); return; }
+
+      const poll = setInterval(async () => {
+        const s = await fetch(`/status/${job_id}`).then(r => r.json());
+        setDlMsg(s.message);
+        if (s.status === "done") {
+          clearInterval(poll);
+          window.location.href = `/download/${s.filename}`;
+          setDownloading(false);
+          setDlMsg("");
+        } else if (s.status === "error") {
+          clearInterval(poll);
+          setDownloading(false);
+        }
+      }, 2000);
+    } catch {
+      setDlMsg("Connection failed.");
+      setDownloading(false);
+    }
+  };
+
+  // ── Frame calc ──
+  const frame = useMemo(() => {
+    if (!fplData) return [];
+    const gwFloor = Math.max(1, Math.floor(gw));
+    const gwCeil  = Math.min(fplData.totalGws, Math.ceil(gw));
+    const t       = gw - Math.floor(gw);
+    return fplData.managers.map((m, i) => {
+      const totalF = fplData.scores[i]?.[gwFloor - 1] ?? 0;
+      const totalC = fplData.scores[i]?.[gwCeil  - 1] ?? 0;
+      return {
+        ...m,
+        total:   totalF * (1 - t) + totalC * t,
+        gwScore: fplData.gwScores[i]?.[gwFloor - 1] ?? 0,
+      };
+    });
+  }, [gw, fplData]);
+
+  const sorted   = useMemo(() => [...frame].sort((a, b) => b.total - a.total).slice(0, topN), [frame, topN]);
+  const maxTot   = sorted[0]?.total ?? 1;
+  const CH       = sorted.length * (SH + SG) - SG;
+  const rankOf   = useMemo(() => Object.fromEntries(sorted.map((m, i) => [m.id, i])), [sorted]);
+  const gwInt    = Math.floor(gw);
+  const isFinale = gw >= totalGws;
+  const winner   = isFinale ? sorted[0] : null;
+  const progWidth = `${(gw / totalGws) * 100}%`;
+
+  const mono      = "'JetBrains Mono', monospace";
+  const condensed = "'Barlow Condensed', sans-serif";
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Phase: FORM
+  ════════════════════════════════════════════════════════════════════════ */
+  if (phase === "form") {
+    return (
+      <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: 24, fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
+        <div style={{ width: "100%", maxWidth: 360 }}>
+          {/* top row */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
+            <button onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              style={{ background: "none", border: `1px solid ${tk.border}`, borderRadius: 8,
+                       padding: "6px 8px", cursor: "pointer", color: tk.dim, display: "flex", alignItems: "center" }}>
+              {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+            </button>
+          </div>
+
+          <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.625rem",
+                      letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 8 }}>
+            Fantasy Premier League
+          </p>
+          <h1 style={{ fontSize: "3.75rem", fontWeight: 900, textTransform: "uppercase",
+                       lineHeight: 1, margin: 0 }}>Season</h1>
+          <h1 style={{ fontSize: "3.75rem", fontWeight: 900, textTransform: "uppercase",
+                       lineHeight: 1, marginBottom: 32 }}>Race</h1>
+          <div style={{ height: 1, marginBottom: 32,
+                        background: `linear-gradient(to right, ${tk.accent}60, ${tk.text}20, transparent)` }} />
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* League ID */}
+            <div>
+              <label style={{ display: "block", marginBottom: 8, color: tk.dim,
+                              fontFamily: mono, fontSize: "0.625rem",
+                              letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                League ID
+              </label>
+              <input
+                type="number"
+                value={leagueId}
+                onChange={e => setLeagueId(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && fetchData()}
+                placeholder="e.g. 154649"
+                style={{ width: "100%", background: "transparent", border: `1px solid ${tk.border}`,
+                         borderRadius: 6, padding: "12px 16px", color: tk.text,
+                         fontSize: "1.1rem", fontWeight: 700, outline: "none",
+                         boxSizing: "border-box", fontFamily: mono }}
+              />
+              <p style={{ marginTop: 6, color: tk.dim, fontFamily: mono, fontSize: "0.625rem" }}>
+                URL: /leagues/<span style={{ color: tk.accent }}>XXXXXX</span>/standings/c
+              </p>
+            </div>
+
+            {/* Top N */}
+            <div>
+              <label style={{ display: "block", marginBottom: 8, color: tk.dim,
+                              fontFamily: mono, fontSize: "0.625rem",
+                              letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                Show Teams
+              </label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {TOP_N_OPTIONS.map(n => (
+                  <button key={n} onClick={() => setTopN(n)}
+                    style={{
+                      flex:            1,
+                      padding:         "8px 0",
+                      borderRadius:    6,
+                      border:          "none",
+                      fontFamily:      mono,
+                      fontSize:        "0.875rem",
+                      fontWeight:      900,
+                      cursor:          "pointer",
+                      transition:      "all 0.15s",
+                      backgroundColor: topN === n ? tk.accent           : tk.btnSubtle,
+                      color:           topN === n ? tk.accentFg         : tk.dim,
+                    }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={fetchData}
+              style={{ width: "100%", padding: "12px 0", borderRadius: 6, border: "none",
+                       background: tk.accent, color: tk.accentFg, fontWeight: 900,
+                       fontSize: "1rem", letterSpacing: "0.15em", textTransform: "uppercase",
+                       cursor: "pointer", fontFamily: condensed }}>
+              Generate →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Phase: LOADING
+  ════════════════════════════════════════════════════════════════════════ */
+  if (phase === "loading") {
+    return (
+      <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: mono, transition: "background 0.3s" }}>
+        <div style={{ textAlign: "center" }}>
+          <Loader2 size={32} className="animate-spin" style={{ color: tk.accent, margin: "0 auto 16px" }} />
+          <p style={{ color: tk.dim, fontSize: "0.75rem", letterSpacing: "0.2em", textTransform: "uppercase" }}>
+            Fetching league data...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Phase: ERROR
+  ════════════════════════════════════════════════════════════════════════ */
+  if (phase === "error") {
+    return (
+      <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
+                    display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ color: "#f87171", marginBottom: 16 }}>{errorMsg}</p>
+          <button onClick={() => setPhase("form")}
+            style={{ background: "none", border: "none", color: tk.dim, cursor: "pointer",
+                     display: "flex", alignItems: "center", gap: 8,
+                     fontFamily: mono, fontSize: "0.75rem" }}>
+            <ChevronLeft size={12} /> Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════════════════════════════════════════════
+     Phase: READY
+  ════════════════════════════════════════════════════════════════════════ */
+  return (
+    <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
+                  fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
+      <style>{`
+        ::-webkit-scrollbar { display: none; }
+        * { scrollbar-width: none; }
+        input[type=range] { height: 4px; cursor: pointer; }
+        input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; }
+      `}</style>
+
+      <div style={{ maxWidth: 672, margin: "0 auto", padding: "32px 16px 48px" }}>
+
+        {/* ── Header ── */}
+        <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: captureMode ? 0 : 0.45 }}
+          style={{ marginBottom: 40 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+            <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.625rem",
+                        letterSpacing: "0.3em", textTransform: "uppercase", margin: 0 }}>
+              Fantasy Premier League · {fplData?.leagueName}
+            </p>
+            {!captureMode && (
+              <button onClick={toggleTheme}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                style={{ background: "none", border: `1px solid ${tk.border}`, borderRadius: 8,
+                         padding: "6px 8px", cursor: "pointer", color: tk.dim,
+                         display: "flex", alignItems: "center", flexShrink: 0 }}>
+                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
+            <h1 style={{ fontWeight: 900, textTransform: "uppercase", lineHeight: 1,
+                         fontSize: "clamp(2.5rem, 10vw, 4.5rem)", margin: 0 }}>
+              Season<br />Race
+            </h1>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <p style={{ fontSize: "0.75rem", color: tk.dim, letterSpacing: "0.1em",
+                          textTransform: "uppercase", margin: 0 }}>Season</p>
+              <p style={{ fontSize: "1.5rem", fontWeight: 900, margin: 0 }}>2025/26</p>
+            </div>
+          </div>
+          <div style={{ height: 1, marginTop: 16,
+                        background: `linear-gradient(to right, ${tk.accent}60, ${tk.text}20, transparent)` }} />
+        </motion.header>
+
+        {/* ── GW counter + progress ── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 40 }}>
+          <p style={{ color: tk.dim, fontFamily: mono, fontSize: "0.625rem",
+                      letterSpacing: "0.2em", textTransform: "uppercase", flexShrink: 0, margin: 0 }}>GW</p>
+          <motion.span key={gwInt}
+            initial={{ color: tk.accent, scale: 1.18 }}
+            animate={{ color: tk.text,   scale: 1 }}
+            transition={{ duration: captureMode ? 0 : 0.3 }}
+            style={{ fontFamily: mono, fontSize: "3rem", fontWeight: 900,
+                     lineHeight: 1, minWidth: "3ch", display: "block" }}>
+            {String(gwInt).padStart(2, "0")}
+          </motion.span>
+          <span style={{ color: tk.dim, fontSize: "1.25rem", marginRight: 4 }}>
+            /{String(totalGws).padStart(2, "0")}
+          </span>
+          <div style={{ flex: 1, position: "relative", height: 2,
+                        background: tk.border, borderRadius: 2, overflow: "hidden" }}>
+            <motion.div style={{ position: "absolute", inset: "0 auto 0 0",
+                                 background: tk.accent, borderRadius: 2 }}
+              animate={{ width: progWidth }} transition={{ duration: 0.55 }} />
+          </div>
+        </div>
+
+        {/* ── Bar chart ── */}
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ duration: captureMode ? 0 : 0.4 }}
+          style={{ height: CH, position: "relative", marginBottom: 40 }}>
+
+          {frame.map(m => {
+            const rank  = rankOf[m.id] ?? 9999;
+            if (rank >= topN) return null;
+            const y            = rank * (SH + SG);
+            const pct          = (m.total / maxTot) * 100;
+            const isTop        = rank === 0;
+            const displayTotal = Math.round(m.total);
+
+            return (
+              <motion.div key={m.id}
+                initial={false}
+                animate={{ y }}
+                transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+                style={{ position: "absolute", top: 0, left: 0, right: 0, height: SH,
+                         display: "flex", alignItems: "center", gap: 12 }}>
+
+                {/* Rank badge */}
+                <div style={{
+                  width:      28, textAlign: "right", fontSize: "1rem",
+                  fontWeight: 900, flexShrink: 0, fontFamily: mono,
+                  color:      rank < 3 ? RANK_COLORS[rank] : tk.rankDefault,
+                  transition: "color 0.5s",
+                }}>
+                  {rank < 3 ? RANK_GLYPHS[rank] : String(rank + 1)}
+                </div>
+
+                {/* Name + bar + score */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* Name row */}
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase",
+                                   letterSpacing: "0.04em", color: m.color,
+                                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {m.name}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: tk.dim,
+                                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {m.team}
+                    </span>
+                  </div>
+
+                  {/* Bar + total score — same row so score is vertically aligned with bar */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+
+                    {/* Bar track */}
+                    <div style={{ flex: 1, position: "relative", height: 24, borderRadius: 3,
+                                  overflow: "hidden", backgroundColor: tk.surface }}>
+                      {/* Colored fill — contains GW score at its right edge */}
+                      <motion.div
+                        initial={false}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+                        style={{
+                          position:     "absolute", inset: "0 auto 0 0",
+                          borderRadius: "0 2px 2px 0",
+                          overflow:     "hidden",
+                          boxShadow:    isTop ? `0 0 20px ${m.color}55` : "none",
+                          display: "flex", alignItems: "center", justifyContent: "flex-end",
+                          paddingRight: 7,
+                        }}>
+                        {/* Background — separate div so opacity doesn't dim the text */}
+                        <div style={{
+                          position:        "absolute", inset: 0,
+                          backgroundColor: m.color,
+                          opacity:         isTop ? tk.barOpTop : tk.barOpOther,
+                        }} />
+                        {/* GW score at right edge of colored fill */}
+                        {m.gwScore > 0 && (
+                          <span style={{
+                            position:      "relative", zIndex: 1,
+                            fontSize:      "0.6rem", fontWeight: 900,
+                            color:         "white",
+                            fontFamily:    mono,
+                            pointerEvents: "none",
+                            whiteSpace:    "nowrap",
+                          }}>+{m.gwScore}</span>
+                        )}
+                      </motion.div>
+                      {/* "Leader" label — left side, on top of fill */}
+                      {isTop && pct > 22 && (
+                        <span style={{
+                          position:      "absolute", left: 10,
+                          top:           "50%", transform: "translateY(-50%)",
+                          fontSize:      "0.55rem", fontWeight: 900,
+                          textTransform: "uppercase", letterSpacing: "0.18em",
+                          color:         "rgba(0,0,0,0.55)",
+                          pointerEvents: "none",
+                          zIndex:        2,
+                        }}>Leader</span>
+                      )}
+                    </div>
+
+                    {/* Total score — aligned with bar */}
+                    <div style={{ textAlign: "right", width: 68, flexShrink: 0,
+                                  fontFamily: mono, fontSize: "1.1rem", fontWeight: 900,
+                                  lineHeight: 1, color: isTop ? tk.accent : tk.text }}>
+                      {displayTotal.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+
+        {/* ── Winner banner ── */}
+        {isFinale && winner && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: captureMode ? 0 : 0.5 }}
+            style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12,
+                     padding: "12px 16px", borderRadius: 8,
+                     border: `1px solid ${winner.color}33`,
+                     backgroundColor: `${winner.color}0d` }}>
+            <Trophy size={18} style={{ color: "#ffd700", flexShrink: 0 }} />
+            <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.4 }}>
+              <span style={{ fontWeight: 900, textTransform: "uppercase",
+                             letterSpacing: "0.04em", color: winner.color }}>{winner.name}</span>
+              <span style={{ color: tk.dim }}> wins {fplData?.leagueName} · </span>
+              <span style={{ fontWeight: 900, fontFamily: mono }}>
+                {Math.round(winner.total).toLocaleString()} pts
+              </span>
+            </p>
+          </motion.div>
+        )}
+
+        {/* ── Controls (hidden in capture mode) ── */}
+        {!captureMode && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+                          paddingTop: 20, borderTop: `1px solid ${tk.border}` }}>
+              <button onClick={() => { setPlay(false); setGw(1); }}
+                style={{ padding: 8, background: "none", border: "none",
+                         cursor: "pointer", color: tk.dim }} title="Reset to GW 1">
+                <RotateCcw size={15} />
+              </button>
+              <button onClick={toggle}
+                style={{ display: "flex", alignItems: "center", gap: 8,
+                         padding: "8px 20px", borderRadius: 6, border: "none",
+                         background: tk.accent, color: tk.accentFg, fontWeight: 900,
+                         fontSize: "0.875rem", letterSpacing: "0.1em",
+                         textTransform: "uppercase", cursor: "pointer", fontFamily: condensed }}>
+                {playing ? <Pause size={14} /> : <Play size={14} />}
+                <span>{playing ? "Pause" : isFinale ? "Replay" : "Play"}</span>
+              </button>
+              <div style={{ display: "flex", gap: 4 }}>
+                {SPEEDS.map((s, i) => (
+                  <button key={s.label} onClick={() => setSpd(i)}
+                    style={{
+                      padding:         "5px 10px", borderRadius: 5, border: "none",
+                      fontFamily:      mono, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer",
+                      backgroundColor: spd === i ? `${tk.accent}22` : "transparent",
+                      color:           spd === i ? tk.accent : tk.dim,
+                    }}>
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <input type="range" min={1} max={totalGws} value={gwInt}
+                onChange={e => { setPlay(false); setGw(Number(e.target.value)); }}
+                style={{ flex: 1, minWidth: 80, accentColor: tk.accent } as React.CSSProperties} />
+              <span style={{ fontFamily: mono, fontSize: "0.625rem", color: tk.dim }}>
+                GW{String(gwInt).padStart(2, "0")}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+              <button onClick={() => { setPhase("form"); setPlay(false); }}
+                style={{ display: "flex", alignItems: "center", gap: 8, background: "none",
+                         border: "none", color: tk.dim, cursor: "pointer",
+                         fontFamily: mono, fontSize: "0.75rem" }}>
+                <ChevronLeft size={12} /> Change league
+              </button>
+              <div style={{ flex: 1 }} />
+              {downloading ? (
+                <span style={{ display: "flex", alignItems: "center", gap: 8,
+                               color: tk.dim, fontFamily: mono, fontSize: "0.6875rem" }}>
+                  <Loader2 size={11} className="animate-spin" />{dlMsg}
+                </span>
+              ) : (
+                <button onClick={downloadMp4}
+                  style={{ display: "flex", alignItems: "center", gap: 8,
+                           padding: "7px 14px", borderRadius: 6, border: "none",
+                           background: tk.btnSubtle, color: tk.textSub,
+                           fontFamily: mono, fontSize: "0.75rem", fontWeight: 700,
+                           textTransform: "uppercase", letterSpacing: "0.05em", cursor: "pointer" }}>
+                  <Download size={12} /> Download MP4
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+      </div>
+    </div>
+  );
+}

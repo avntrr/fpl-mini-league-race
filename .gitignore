@@ -1,0 +1,12 @@
+.env
+output/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+Create Bar Race Visualization/dist/
+Create Bar Race Visualization/.vite/
+
