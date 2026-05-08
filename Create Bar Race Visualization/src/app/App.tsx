@@ -33,7 +33,7 @@ const SPEEDS = [
   { label: "4×", stepsPerGw:  5 },
 ];
 
-const RANK_COLORS = ["#00ff87", "#ffd700", "#cd853f"];
+const RANK_COLORS = ["#F9CE64", "#B1B0B6", "#E68D3F"];
 const RANK_GLYPHS = ["①", "②", "③"];
 const TOP_N_OPTIONS = [5, 8, 10, 15, 20];
 
