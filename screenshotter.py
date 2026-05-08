@@ -251,7 +251,12 @@ def render_race(
     finally:
         server.shutdown()
 
-    # 5. ffmpeg: PNG sequence → MP4 (1080×1920, already full HD — no padding needed)
+    # 5. ffmpeg: PNG sequence → MP4 (1080×1920)
+    # Memory-efficient flags for constrained environments (Railway 512MB):
+    # - ultrafast preset  : minimal lookahead buffer (~0 frames vs ~250 for "fast")
+    # - ref=1 bframes=0   : only 1 reference frame kept in RAM (vs 4-16)
+    # - threads=2         : limit worker threads to cap peak memory
+    # - crf=23            : quality-based encoding (no bitrate buffer overhead)
     subprocess.run(
         [
             "ffmpeg", "-y",
@@ -259,7 +264,10 @@ def render_race(
             "-i", str(frames_dir / "frame_%06d.png"),
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
-            "-preset", "fast",
+            "-preset", "ultrafast",
+            "-crf", "23",
+            "-x264opts", "ref=1:bframes=0:no-cabac=1",
+            "-threads", "2",
             str(output_path),
         ],
         check=True,
