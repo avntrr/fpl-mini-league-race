@@ -23,20 +23,23 @@ interface FplData {
   regionsMap?: Record<string, string>; // team_name → ISO 2-letter code (Global only)
 }
 
-// FPL uses non-standard codes for UK nations — map them to real ISO codes
-const FPL_ISO_MAP: Record<string, string> = {
-  EN: "GB", // England
-  SC: "GB", // Scotland
-  WA: "GB", // Wales
-  NI: "GB", // Northern Ireland
+// FPL uses non-standard codes for UK nations.
+// England/Scotland/Wales have their own subdivision flag emojis (tag characters).
+// Northern Ireland has no official emoji → use 🇬🇧.
+const FPL_FLAG_OVERRIDES: Record<string, string> = {
+  EN: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", // 🏴󠁧󠁢󠁥󠁮󠁧󠁿
+  SC: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}", // 🏴󠁧󠁢󠁳󠁣󠁴󠁿
+  WA: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}", // 🏴󠁧󠁢󠁷󠁬󠁳󠁿
+  NI: "\u{1F1EC}\u{1F1E7}",                                               // 🇬🇧
 };
 
 /** Convert 2-letter ISO code (or FPL custom code) to flag emoji. "ID" → 🇮🇩 */
 const isoToFlag = (iso: string): string => {
   if (!iso) return "";
-  const code = FPL_ISO_MAP[iso.toUpperCase()] ?? iso.toUpperCase();
-  if (code.length !== 2) return "";
-  return code.split("").map(c =>
+  const upper = iso.toUpperCase();
+  if (upper in FPL_FLAG_OVERRIDES) return FPL_FLAG_OVERRIDES[upper];
+  if (upper.length !== 2) return "";
+  return upper.split("").map(c =>
     String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
   ).join("");
 };
