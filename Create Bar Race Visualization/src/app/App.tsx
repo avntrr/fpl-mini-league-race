@@ -45,8 +45,8 @@ const isoToFlag = (iso: string): string => {
 };
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
-const SH = 82;
-const SG = 10;
+const SH = 78;
+const SG = 6;
 const FRAME_MS = 33;
 
 const SPEEDS = [
@@ -537,9 +537,15 @@ export default function App() {
         </div>
 
         {/* ── Bar chart ── */}
+        <div style={{
+          borderRadius: 14, marginBottom: 40,
+          backgroundColor: theme === "dark" ? "rgba(255,255,255,0.04)" : "#ffffff",
+          boxShadow: theme === "dark" ? "0 2px 12px rgba(0,0,0,0.4)" : "0 2px 12px rgba(0,0,0,0.08)",
+          padding: "8px 14px",
+        }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: captureMode ? 0 : 0.4 }}
-          style={{ height: CH, position: "relative", marginBottom: 40 }}>
+          style={{ height: CH, position: "relative" }}>
 
           {frame.map(m => {
             const rank  = rankOf[m.id] ?? 9999;
@@ -560,12 +566,7 @@ export default function App() {
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0, height: SH,
                   display: "flex", flexDirection: "column", justifyContent: "center",
-                  padding: "10px 14px",
-                  borderRadius: 12,
-                  backgroundColor: theme === "dark" ? "rgba(255,255,255,0.06)" : "#ffffff",
-                  boxShadow: theme === "dark"
-                    ? "0 2px 8px rgba(0,0,0,0.35)"
-                    : "0 1px 8px rgba(0,0,0,0.09)",
+                  borderBottom: `1px solid ${tk.border}`,
                 }}>
 
                 {/* Top row: rank badge | circle | name + team + flag */}
@@ -681,6 +682,7 @@ export default function App() {
             );
           })}
         </motion.div>
+        </div>
 
         {/* ── Winner banner ── */}
         {isFinale && winner && (
