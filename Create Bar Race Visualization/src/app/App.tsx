@@ -302,8 +302,8 @@ export default function App() {
             </button>
           </div>
 
-          <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.625rem",
-                      letterSpacing: "0.3em", textTransform: "uppercase", marginBottom: 8 }}>
+          <p style={{ color: tk.accent, fontFamily: condensed, fontSize: "1rem",
+                      fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 8 }}>
             Fantasy Premier League
           </p>
           <h1 style={{ fontSize: "3.75rem", fontWeight: 900, textTransform: "uppercase",
@@ -333,7 +333,8 @@ export default function App() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-            {/* Mode-specific input */}
+            {/* Mode-specific input — minHeight dikunci ke panel tertinggi (mini) agar tidak bergeser */}
+            <div style={{ minHeight: 96 }}>
             {mode === "mini" && (
               <div>
                 <label style={{ display: "block", marginBottom: 8, color: tk.dim,
@@ -383,6 +384,7 @@ export default function App() {
                 Top managers worldwide ranked by total points.
               </div>
             )}
+            </div>
 
             {/* Top N */}
             <div>
