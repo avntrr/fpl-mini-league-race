@@ -70,7 +70,7 @@ export default function App() {
   const [theme, setTheme] = useState<Theme>(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("capture")) return (params.get("theme") as Theme) ?? "dark";
-    return (localStorage.getItem(THEME_KEY) as Theme) ?? "dark";
+    return (localStorage.getItem(THEME_KEY) as Theme) ?? "light";
   });
   const tk = THEMES[theme];
   const toggleTheme = () => {
