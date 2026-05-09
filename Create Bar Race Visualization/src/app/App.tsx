@@ -487,7 +487,7 @@ export default function App() {
           style={{ marginBottom: captureMode ? 14 : 28 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
             <div>
-              <p style={{ color: tk.accent, fontFamily: condensed, fontSize: "0.8rem",
+              <p style={{ color: tk.accent, fontFamily: condensed, fontSize: "1rem",
                           fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", margin: 0 }}>
                 Fantasy Premier League
               </p>
