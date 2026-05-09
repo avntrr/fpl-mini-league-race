@@ -598,12 +598,12 @@ export default function App() {
 
                   {/* Name + team + flag */}
                   <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase",
+                    <span style={{ fontSize: "1rem", fontWeight: 700, textTransform: "uppercase",
                                    letterSpacing: "0.04em", color: tk.text,
                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {m.name}
                     </span>
-                    <span style={{ fontSize: "0.72rem", color: tk.dim,
+                    <span style={{ fontSize: "0.8rem", color: tk.dim,
                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {m.team}
                     </span>
@@ -625,16 +625,16 @@ export default function App() {
                 {/* Bottom row: indented bar + GW score */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 74 }}>
 
-                  {/* Bar track */}
+                  {/* Bar track — no background so only colored fill is visible */}
                   <div style={{ flex: 1, position: "relative", height: 18, borderRadius: 4,
-                                overflow: "hidden", backgroundColor: tk.surface }}>
+                                overflow: "hidden", backgroundColor: "transparent" }}>
                     <motion.div
                       initial={false}
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
                       style={{
                         position:     "absolute", inset: "0 auto 0 0",
-                        borderRadius: "0 3px 3px 0",
+                        borderRadius: 4,
                         overflow:     "hidden",
                         boxShadow:    isTop ? `0 0 16px ${m.color}55` : "none",
                       }}>
@@ -657,18 +657,19 @@ export default function App() {
                           pointerEvents: "none", zIndex: 2,
                         }}>LEADER</span>
                       )}
+                      {/* GW score pinned to right edge of fill — moves with the bar */}
+                      {m.gwScore > 0 && (
+                        <span style={{
+                          position:      "absolute", right: 7,
+                          top:           "50%", transform: "translateY(-50%)",
+                          fontSize:      "0.65rem", fontWeight: 900,
+                          color:         "rgba(255,255,255,0.9)",
+                          fontFamily:    mono, pointerEvents: "none",
+                          whiteSpace:    "nowrap", zIndex: 2,
+                        }}>+{m.gwScore}</span>
+                      )}
                     </motion.div>
                   </div>
-
-                  {/* GW score outside bar */}
-                  {m.gwScore > 0 && (
-                    <span style={{
-                      fontSize:      "0.7rem", fontWeight: 900,
-                      color:         m.color, fontFamily: mono,
-                      whiteSpace:    "nowrap", flexShrink: 0,
-                      width:         48, textAlign: "left",
-                    }}>+{m.gwScore}</span>
-                  )}
                 </div>
               </motion.div>
             );
