@@ -101,6 +101,17 @@ export default function App() {
   const [downloading, setDownloading] = useState(false);
   const [dlMsg, setDlMsg]             = useState("");
 
+  // ── Responsive zoom for narrow mobile screens ──
+  const [windowW, setWindowW] = useState(() => window.innerWidth);
+  useEffect(() => {
+    if (captureMode) return;
+    const onResize = () => setWindowW(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [captureMode]);
+  // Scale down card when viewport < 440px (natural comfortable width)
+  const webCardZoom = captureMode ? 1 : Math.min(1, (windowW - 32) / 440);
+
   const totalGws = fplData?.totalGws ?? 38;
 
   // Adaptive row height + card zoom for captureMode (fits 5–20 teams in 1080×1920)
@@ -587,7 +598,7 @@ export default function App() {
           marginBottom: captureMode ? 0 : 32,
           paddingTop: 32,
           filter: theme === "dark" ? "drop-shadow(0 2px 14px rgba(0,0,0,0.55))" : "drop-shadow(0 2px 10px rgba(0,0,0,0.12))",
-          zoom: captureCardZoom,
+          zoom: captureMode ? captureCardZoom : webCardZoom,
         }}>
           {/* Folder tab — sticks up above card on top-right */}
           <div style={{
