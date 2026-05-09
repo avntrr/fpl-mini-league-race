@@ -45,8 +45,8 @@ const isoToFlag = (iso: string): string => {
 };
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
-const SH = 58;
-const SG = 9;
+const SH = 78;
+const SG = 6;
 const FRAME_MS = 33;
 
 const SPEEDS = [
@@ -558,46 +558,52 @@ export default function App() {
                 animate={{ y }}
                 transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
                 style={{ position: "absolute", top: 0, left: 0, right: 0, height: SH,
-                         display: "flex", alignItems: "center", gap: 8 }}>
+                         display: "flex", flexDirection: "column", justifyContent: "center",
+                         padding: "0 4px",
+                         borderBottom: `1px solid ${tk.border}` }}>
 
-                {/* Rank badge */}
-                <div style={{
-                  width:      28, textAlign: "right", fontSize: "1rem",
-                  fontWeight: 900, flexShrink: 0, fontFamily: mono,
-                  color:      rank < 3 ? RANK_COLORS[rank] : tk.rankDefault,
-                  transition: "color 0.5s",
-                }}>
-                  {rank < 3 ? RANK_GLYPHS[rank] : String(rank + 1)}
-                </div>
+                {/* Top row: rank badge | circle | name + team + flag | total score */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
 
-                {/* Rank-change indicator */}
-                <div style={{
-                  width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  backgroundColor: rankDelta > 0 ? "#16a34a"
-                                 : rankDelta < 0 ? "#dc2626"
-                                 : tk.surface,
-                  transition: "background-color 0.4s",
-                }}>
-                  {rankDelta > 0
-                    ? <ChevronUp  size={11} color="#fff" strokeWidth={3} />
-                    : rankDelta < 0
-                    ? <ChevronDown size={11} color="#fff" strokeWidth={3} />
-                    : <span style={{ width: 5, height: 5, borderRadius: "50%",
-                                     backgroundColor: tk.dim, display: "block" }} />
-                  }
-                </div>
+                  {/* Rank badge — colored square */}
+                  <div style={{
+                    width: 36, height: 36, flexShrink: 0,
+                    borderRadius: 8,
+                    backgroundColor: m.color,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    transition: "background-color 0.5s",
+                  }}>
+                    <span style={{ fontSize: "1rem", fontWeight: 900, color: "#fff", fontFamily: mono }}>
+                      {rank + 1}
+                    </span>
+                  </div>
 
-                {/* Name + bar + score */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Name row */}
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6 }}>
+                  {/* Rank-change indicator */}
+                  <div style={{
+                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    backgroundColor: rankDelta > 0 ? "#16a34a"
+                                   : rankDelta < 0 ? "#dc2626"
+                                   : tk.surface,
+                    transition: "background-color 0.4s",
+                  }}>
+                    {rankDelta > 0
+                      ? <ChevronUp  size={12} color="#fff" strokeWidth={3} />
+                      : rankDelta < 0
+                      ? <ChevronDown size={12} color="#fff" strokeWidth={3} />
+                      : <span style={{ width: 5, height: 5, borderRadius: "50%",
+                                       backgroundColor: tk.dim, display: "block" }} />
+                    }
+                  </div>
+
+                  {/* Name + team + flag */}
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
                     <span style={{ fontSize: "0.875rem", fontWeight: 700, textTransform: "uppercase",
-                                   letterSpacing: "0.04em", color: m.color,
+                                   letterSpacing: "0.04em", color: tk.text,
                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {m.name}
                     </span>
-                    <span style={{ fontSize: "0.75rem", color: tk.dim,
+                    <span style={{ fontSize: "0.72rem", color: tk.dim,
                                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {m.team}
                     </span>
@@ -608,64 +614,61 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Bar + total score — same row so score is vertically aligned with bar */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-
-                    {/* Bar track */}
-                    <div style={{ flex: 1, position: "relative", height: 24, borderRadius: 3,
-                                  overflow: "hidden", backgroundColor: tk.surface }}>
-                      {/* Colored fill — contains GW score at its right edge */}
-                      <motion.div
-                        initial={false}
-                        animate={{ width: `${pct}%` }}
-                        transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
-                        style={{
-                          position:     "absolute", inset: "0 auto 0 0",
-                          borderRadius: "0 2px 2px 0",
-                          overflow:     "hidden",
-                          boxShadow:    isTop ? `0 0 20px ${m.color}55` : "none",
-                          display: "flex", alignItems: "center", justifyContent: "flex-end",
-                          paddingRight: 7,
-                        }}>
-                        {/* Background — separate div so opacity doesn't dim the text */}
-                        <div style={{
-                          position:        "absolute", inset: 0,
-                          backgroundColor: m.color,
-                          opacity:         isTop ? tk.barOpTop : tk.barOpOther,
-                        }} />
-                        {/* GW score at right edge of colored fill */}
-                        {m.gwScore > 0 && (
-                          <span style={{
-                            position:      "relative", zIndex: 1,
-                            fontSize:      "0.6rem", fontWeight: 900,
-                            color:         "white",
-                            fontFamily:    mono,
-                            pointerEvents: "none",
-                            whiteSpace:    "nowrap",
-                          }}>+{m.gwScore}</span>
-                        )}
-                      </motion.div>
-                      {/* "Leader" label — left side, on top of fill */}
-                      {isTop && pct > 22 && (
-                        <span style={{
-                          position:      "absolute", left: 10,
-                          top:           "50%", transform: "translateY(-50%)",
-                          fontSize:      "0.55rem", fontWeight: 900,
-                          textTransform: "uppercase", letterSpacing: "0.18em",
-                          color:         "rgba(0,0,0,0.55)",
-                          pointerEvents: "none",
-                          zIndex:        2,
-                        }}>Leader</span>
-                      )}
-                    </div>
-
-                    {/* Total score — aligned with bar */}
-                    <div style={{ textAlign: "right", width: 68, flexShrink: 0,
-                                  fontFamily: mono, fontSize: "1.1rem", fontWeight: 900,
-                                  lineHeight: 1, color: isTop ? tk.accent : tk.text }}>
-                      {displayTotal.toLocaleString()}
-                    </div>
+                  {/* Total score */}
+                  <div style={{ textAlign: "right", width: 68, flexShrink: 0,
+                                fontFamily: mono, fontSize: "1.5rem", fontWeight: 900,
+                                lineHeight: 1, color: isTop ? tk.accent : tk.text }}>
+                    {displayTotal.toLocaleString()}
                   </div>
+                </div>
+
+                {/* Bottom row: indented bar + GW score */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 74 }}>
+
+                  {/* Bar track */}
+                  <div style={{ flex: 1, position: "relative", height: 18, borderRadius: 4,
+                                overflow: "hidden", backgroundColor: tk.surface }}>
+                    <motion.div
+                      initial={false}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+                      style={{
+                        position:     "absolute", inset: "0 auto 0 0",
+                        borderRadius: "0 3px 3px 0",
+                        overflow:     "hidden",
+                        boxShadow:    isTop ? `0 0 16px ${m.color}55` : "none",
+                      }}>
+                      <div style={{
+                        position:        "absolute", inset: 0,
+                        backgroundColor: m.color,
+                        opacity:         isTop ? tk.barOpTop : tk.barOpOther,
+                      }} />
+                      {/* LEADER pill inside bar */}
+                      {isTop && pct > 15 && (
+                        <span style={{
+                          position:      "absolute", left: 8,
+                          top:           "50%", transform: "translateY(-50%)",
+                          fontSize:      "0.5rem", fontWeight: 900,
+                          textTransform: "uppercase", letterSpacing: "0.15em",
+                          color:         "#fff",
+                          border:        "1px solid rgba(255,255,255,0.5)",
+                          borderRadius:  3, padding: "1px 5px",
+                          backgroundColor: "rgba(255,255,255,0.12)",
+                          pointerEvents: "none", zIndex: 2,
+                        }}>LEADER</span>
+                      )}
+                    </motion.div>
+                  </div>
+
+                  {/* GW score outside bar */}
+                  {m.gwScore > 0 && (
+                    <span style={{
+                      fontSize:      "0.7rem", fontWeight: 900,
+                      color:         m.color, fontFamily: mono,
+                      whiteSpace:    "nowrap", flexShrink: 0,
+                      width:         48, textAlign: "left",
+                    }}>+{m.gwScore}</span>
+                  )}
                 </div>
               </motion.div>
             );
@@ -704,7 +707,7 @@ export default function App() {
               </button>
               <button onClick={toggle}
                 style={{ display: "flex", alignItems: "center", gap: 8,
-                         padding: "8px 20px", borderRadius: 6, border: "none",
+                         padding: "10px 24px", borderRadius: 24, border: "none",
                          background: tk.accent, color: tk.accentFg, fontWeight: 900,
                          fontSize: "0.875rem", letterSpacing: "0.1em",
                          textTransform: "uppercase", cursor: "pointer", fontFamily: condensed }}>
@@ -715,7 +718,8 @@ export default function App() {
                 {SPEEDS.map((s, i) => (
                   <button key={s.label} onClick={() => setSpd(i)}
                     style={{
-                      padding:         "5px 10px", borderRadius: 5, border: "none",
+                      padding:         "5px 10px", borderRadius: 5,
+                      border:          spd === i ? `1px solid ${tk.accent}60` : `1px solid ${tk.border}`,
                       fontFamily:      mono, fontSize: "0.7rem", fontWeight: 700, cursor: "pointer",
                       backgroundColor: spd === i ? `${tk.accent}22` : "transparent",
                       color:           spd === i ? tk.accent : tk.dim,
