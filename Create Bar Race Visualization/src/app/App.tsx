@@ -523,7 +523,13 @@ export default function App() {
 
         {/* ── GW counter + progress ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: captureMode ? 10 : 24 }}>
-          {/* GW number group */}
+          <div style={{ flex: 1, position: "relative", height: 2,
+                        background: tk.border, borderRadius: 2, overflow: "hidden" }}>
+            <motion.div style={{ position: "absolute", inset: "0 auto 0 0",
+                                 background: tk.accent, borderRadius: 2 }}
+              animate={{ width: progWidth }} transition={{ duration: 0.55 }} />
+          </div>
+          {/* GW number group — kanan */}
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexShrink: 0 }}>
             <span style={{ color: tk.dim, fontFamily: mono, fontSize: "1.1rem",
                            fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>GW</span>
@@ -538,12 +544,6 @@ export default function App() {
             <span style={{ color: tk.dim, fontSize: "1.1rem", fontWeight: 700, fontFamily: mono }}>
               /{String(totalGws).padStart(2, "0")}
             </span>
-          </div>
-          <div style={{ flex: 1, position: "relative", height: 2,
-                        background: tk.border, borderRadius: 2, overflow: "hidden" }}>
-            <motion.div style={{ position: "absolute", inset: "0 auto 0 0",
-                                 background: tk.accent, borderRadius: 2 }}
-              animate={{ width: progWidth }} transition={{ duration: 0.55 }} />
           </div>
         </div>
 
