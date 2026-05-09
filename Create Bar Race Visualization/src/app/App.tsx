@@ -284,6 +284,27 @@ export default function App() {
   const winner   = isFinale ? sorted[0] : null;
   const progWidth = `${(gw / totalGws) * 100}%`;
 
+  // FPL standings API truncates team names at ~20 chars with "..."
+  // regionsMap is keyed by FULL name → do prefix match for truncated names
+  const resolvedTeamMap = useMemo<Record<string, { fullName: string; iso: string | undefined }>>(() => {
+    if (!fplData?.regionsMap) return {};
+    const rm = fplData.regionsMap;
+    const result: Record<string, { fullName: string; iso: string | undefined }> = {};
+    for (const m of fplData.managers) {
+      const t = m.team;
+      if (rm[t] !== undefined) {
+        result[t] = { fullName: t, iso: rm[t] };
+      } else if (t.endsWith("...")) {
+        const prefix = t.slice(0, -3);
+        const entry = Object.entries(rm).find(([k]) => k.startsWith(prefix));
+        result[t] = { fullName: entry?.[0] ?? t, iso: entry?.[1] };
+      } else {
+        result[t] = { fullName: t, iso: undefined };
+      }
+    }
+    return result;
+  }, [fplData]);
+
   const mono      = "'JetBrains Mono', monospace";
   const condensed = "'Barlow Condensed', sans-serif";
 
@@ -660,11 +681,11 @@ export default function App() {
                       {m.name}
                     </span>
                     <span style={{ fontSize: "0.8rem", color: tk.dim }}>
-                      {m.team}
+                      {resolvedTeamMap[m.team]?.fullName ?? m.team}
                     </span>
-                    {fplData?.regionsMap?.[m.team] && (
+                    {resolvedTeamMap[m.team]?.iso && (
                       <span style={{ fontSize: "0.85rem", flexShrink: 0, lineHeight: 1 }}>
-                        {isoToFlag(fplData.regionsMap[m.team])}
+                        {isoToFlag(resolvedTeamMap[m.team].iso!)}
                       </span>
                     )}
                   </div>
