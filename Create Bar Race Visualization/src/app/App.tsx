@@ -487,12 +487,12 @@ export default function App() {
           style={{ marginBottom: captureMode ? 14 : 28 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
             <div>
-              <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.7rem",
-                          fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", margin: 0 }}>
+              <p style={{ color: tk.accent, fontFamily: condensed, fontSize: "0.8rem",
+                          fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", margin: 0 }}>
                 Fantasy Premier League
               </p>
-              <p style={{ color: tk.dim, fontFamily: mono, fontSize: "0.65rem",
-                          letterSpacing: "0.2em", textTransform: "uppercase", margin: "2px 0 0" }}>
+              <p style={{ color: tk.dim, fontFamily: condensed, fontSize: "0.75rem",
+                          letterSpacing: "0.04em", textTransform: "uppercase", margin: "2px 0 0" }}>
                 {fplData?.leagueName}
               </p>
             </div>
