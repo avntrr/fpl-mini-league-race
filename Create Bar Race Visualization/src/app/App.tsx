@@ -64,8 +64,7 @@ export default function App() {
   const captureMode = typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("capture");
 
-  const SH = captureMode ? 68 : 78;
-  const SG = captureMode ? 4  : 6;
+  const SG      = captureMode ? 4 : 6;
 
   // ── Theme — in capture mode read from URL (?theme=light), else localStorage ──
   const [theme, setTheme] = useState<Theme>(() => {
@@ -103,6 +102,18 @@ export default function App() {
   const [dlMsg, setDlMsg]             = useState("");
 
   const totalGws = fplData?.totalGws ?? 38;
+
+  // Adaptive row height + card zoom for captureMode (fits 5–20 teams in 1080×1920)
+  const _AVAIL_CH = 793; // px available for chart in 960px capture viewport
+  const _BASE_SH  = captureMode ? 68 : 78;
+  const _MIN_SH   = captureMode ? 34 : 44; // captureMode rows are much more compact
+  const SH = captureMode
+    ? Math.max(_MIN_SH, Math.min(_BASE_SH, Math.floor((_AVAIL_CH + SG) / topN) - SG))
+    : _BASE_SH;
+  const _rawCH       = topN * (SH + SG) - SG;
+  const captureCardZoom = (captureMode && _rawCH > _AVAIL_CH) ? _AVAIL_CH / _rawCH : 1;
+  // compact = video render with 15 or 20 teams → slim bars, no rank box
+  const compact = captureMode && topN >= 15;
 
   // ── Capture mode: load fpl-data.json + expose window.__FPL_SEEK ──
   useEffect(() => {
@@ -246,6 +257,12 @@ export default function App() {
 
   const sorted   = useMemo(() => [...frame].sort((a, b) => b.total - a.total).slice(0, topN), [frame, topN]);
   const maxTot   = sorted[0]?.total ?? 1;
+  // Fixed scale: highest total across ALL GWs so bars grow throughout the race
+  const finalMaxTot = useMemo(() => {
+    if (!fplData) return 1;
+    const last = fplData.totalGws - 1;
+    return Math.max(...fplData.managers.map((_, i) => fplData.scores[i]?.[last] ?? 0)) || 1;
+  }, [fplData]);
   const CH       = sorted.length * (SH + SG) - SG;
   const rankOf   = useMemo(() => Object.fromEntries(sorted.map((m, i) => [m.id, i])), [sorted]);
   const gwInt    = Math.floor(gw);
@@ -487,73 +504,87 @@ export default function App() {
         <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: captureMode ? 0 : 0.45 }}
           style={{ marginBottom: captureMode ? 14 : 28 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-            <div>
-              <p style={{ color: tk.accent, fontFamily: condensed, fontSize: "1rem",
-                          fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", margin: 0 }}>
-                Fantasy Premier League
-              </p>
-              <p style={{ color: tk.dim, fontFamily: condensed, fontSize: "1rem",
-                          letterSpacing: "0.04em", textTransform: "uppercase", margin: "2px 0 0" }}>
-                {fplData?.leagueName}
-              </p>
-            </div>
+          {/* Row 1: FPL title + theme button */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <p style={{ color: tk.accent, fontFamily: condensed, fontSize: "1rem",
+                        fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", margin: 0 }}>
+              Fantasy Premier League
+            </p>
             {!captureMode && (
               <button onClick={toggleTheme}
                 title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                style={{ background: "none", border: `1px solid ${tk.border}`, borderRadius: 8,
+                style={{ background: "none", border: "none",
                          padding: "6px 8px", cursor: "pointer", color: tk.dim,
                          display: "flex", alignItems: "center", flexShrink: 0 }}>
                 {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
               </button>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
+          {/* Row 2: League name (left) aligned with GAMEWEEK label (right) */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+            <p style={{ color: tk.dim, fontFamily: condensed, fontSize: "1rem",
+                        letterSpacing: "0.04em", textTransform: "uppercase", margin: 0 }}>
+              {fplData?.leagueName}
+            </p>
+            <p style={{ fontFamily: condensed, fontSize: "1rem", fontWeight: 400,
+                        color: tk.dim, letterSpacing: "0.04em", textTransform: "uppercase",
+                        margin: 0, flexShrink: 0 }}>
+              GAMEWEEK
+            </p>
+          </div>
+          {/* Row 3: SEASON RACE (left) aligned with GW number (right) */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
             <h1 style={{ fontWeight: 900, textTransform: "uppercase", lineHeight: 1,
                          fontSize: "clamp(1.8rem, 8vw, 3.5rem)", margin: 0, whiteSpace: "nowrap" }}>
               Season Race
             </h1>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <p style={{ fontSize: "0.75rem", color: tk.dim, letterSpacing: "0.1em",
-                          textTransform: "uppercase", margin: 0 }}>Season</p>
-              <p style={{ fontSize: "1.5rem", fontWeight: 900, margin: 0 }}>2025/26</p>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 2, flexShrink: 0 }}>
+              <motion.span key={gwInt}
+                initial={{ color: tk.accent }}
+                animate={{ color: tk.text }}
+                transition={{ duration: captureMode ? 0 : 0.3 }}
+                style={{ fontFamily: condensed, fontSize: "clamp(1.8rem, 8vw, 3.5rem)",
+                         fontWeight: 900, lineHeight: 1 }}>
+                {String(gwInt).padStart(2, "0")}
+              </motion.span>
+              <span style={{ fontFamily: condensed, fontSize: "1rem", fontWeight: 700,
+                             color: tk.dim }}>/{String(totalGws).padStart(2, "0")}</span>
             </div>
           </div>
-          <div style={{ height: 1, marginTop: 16,
-                        background: `linear-gradient(to right, ${tk.accent}60, ${tk.text}20, transparent)` }} />
-        </motion.header>
-
-        {/* ── GW counter + progress ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: captureMode ? 10 : 24 }}>
-          <div style={{ flex: 1, position: "relative", height: 2,
+          {/* Progress bar */}
+          <div style={{ position: "relative", height: 2, marginTop: 12,
                         background: tk.border, borderRadius: 2, overflow: "hidden" }}>
             <motion.div style={{ position: "absolute", inset: "0 auto 0 0",
                                  background: tk.accent, borderRadius: 2 }}
               animate={{ width: progWidth }} transition={{ duration: 0.55 }} />
           </div>
-          {/* GW number group — kanan */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexShrink: 0 }}>
-            <span style={{ color: tk.dim, fontFamily: mono, fontSize: "1.1rem",
-                           fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>GW</span>
-            <motion.span key={gwInt}
-              initial={{ color: tk.accent, scale: 1.18 }}
-              animate={{ color: tk.text,   scale: 1 }}
-              transition={{ duration: captureMode ? 0 : 0.3 }}
-              style={{ fontFamily: mono, fontSize: "3rem", fontWeight: 900,
-                       lineHeight: 1, minWidth: "2ch", display: "block" }}>
-              {String(gwInt).padStart(2, "0")}
-            </motion.span>
-            <span style={{ color: tk.dim, fontSize: "1.1rem", fontWeight: 700, fontFamily: mono }}>
-              /{String(totalGws).padStart(2, "0")}
-            </span>
-          </div>
-        </div>
+        </motion.header>
 
         {/* ── Bar chart ── */}
         <div style={{
-          borderRadius: 14, marginBottom: captureMode ? 0 : 32,
+          position: "relative",
+          marginBottom: captureMode ? 0 : 32,
+          paddingTop: 32,
+          filter: theme === "dark" ? "drop-shadow(0 2px 14px rgba(0,0,0,0.55))" : "drop-shadow(0 2px 10px rgba(0,0,0,0.12))",
+          zoom: captureCardZoom,
+        }}>
+          {/* Folder tab — sticks up above card on top-right */}
+          <div style={{
+            position: "absolute", top: 0, right: 0,
+            width: 96, height: 32,
+            backgroundColor: theme === "dark" ? "rgba(255,255,255,0.06)" : "#ffffff",
+            borderRadius: "6px 6px 0 0",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <span style={{
+              fontFamily: condensed, fontSize: "1rem", fontWeight: 700,
+              textTransform: "uppercase", letterSpacing: "0.04em",
+              color: tk.text,
+            }}>2025/26</span>
+          </div>
+        <div style={{
+          borderRadius: "10px 0 10px 10px",
           backgroundColor: theme === "dark" ? "rgba(255,255,255,0.04)" : "#ffffff",
-          boxShadow: theme === "dark" ? "0 2px 12px rgba(0,0,0,0.4)" : "0 2px 12px rgba(0,0,0,0.08)",
           padding: captureMode ? "4px 10px" : "8px 14px",
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -564,7 +595,7 @@ export default function App() {
             const rank  = rankOf[m.id] ?? 9999;
             if (rank >= topN) return null;
             const y            = rank * (SH + SG);
-            const pct          = (m.total / maxTot) * 100;
+            const pct = (m.total / finalMaxTot) * 100;
             const isTop        = rank === 0;
             const displayTotal = Math.round(m.total);
 
@@ -579,24 +610,30 @@ export default function App() {
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0, height: SH,
                   display: "flex", flexDirection: "column", justifyContent: "center",
-                  borderBottom: `1px solid ${tk.border}`,
+                  borderBottom: compact ? "none" : `1px solid ${tk.border}`,
                 }}>
 
-                {/* Top row: rank badge | circle | name + team + flag */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                {/* Top row: rank | circle | name + team + flag */}
+                <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8, marginBottom: compact ? 1 : 6 }}>
 
-                  {/* Rank badge — colored square */}
-                  <div style={{
-                    width: 36, height: 36, flexShrink: 0,
-                    borderRadius: 8,
-                    backgroundColor: m.color,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    transition: "background-color 0.5s",
-                  }}>
-                    <span style={{ fontSize: "1rem", fontWeight: 900, color: "#fff", fontFamily: mono }}>
-                      {rank + 1}
-                    </span>
-                  </div>
+                  {/* Rank — box on web/small topN, plain coloured number when compact */}
+                  {compact ? (
+                    <span style={{
+                      width: 20, flexShrink: 0, textAlign: "center",
+                      fontSize: "0.8rem", fontWeight: 900, color: m.color, fontFamily: mono,
+                    }}>{rank + 1}</span>
+                  ) : (
+                    <div style={{
+                      width: 36, height: 36, flexShrink: 0,
+                      borderRadius: 8, backgroundColor: m.color,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      transition: "background-color 0.5s",
+                    }}>
+                      <span style={{ fontSize: "1rem", fontWeight: 900, color: "#fff", fontFamily: mono }}>
+                        {rank + 1}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Rank-change indicator */}
                   <div style={{
@@ -617,14 +654,12 @@ export default function App() {
                   </div>
 
                   {/* Name + team + flag */}
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
                     <span style={{ fontSize: "1rem", fontWeight: 700, textTransform: "uppercase",
-                                   letterSpacing: "0.04em", color: tk.text,
-                                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                   letterSpacing: "0.04em", color: tk.text }}>
                       {m.name}
                     </span>
-                    <span style={{ fontSize: "0.8rem", color: tk.dim,
-                                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: "0.8rem", color: tk.dim }}>
                       {m.team}
                     </span>
                     {fplData?.regionsMap?.[m.team] && (
@@ -636,28 +671,31 @@ export default function App() {
                 </div>
 
                 {/* Bottom row: bar (indented) + total score */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10, paddingLeft: 74 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8,
+                              paddingLeft: compact ? 53 : 74 }}>
 
-                  {/* Bar track — transparent, only colored fill visible */}
-                  <div style={{ flex: 1, position: "relative", height: 18, borderRadius: 4,
+                  {/* Bar track */}
+                  <div style={{ flex: 1, position: "relative",
+                                height: compact ? 4 : 18,
+                                borderRadius: compact ? 2 : 4,
                                 overflow: "hidden", backgroundColor: "transparent" }}>
                     <motion.div
                       initial={false}
                       animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
+                      transition={{ duration: 0 }}
                       style={{
                         position:     "absolute", inset: "0 auto 0 0",
-                        borderRadius: 4,
+                        borderRadius: compact ? 2 : 4,
                         overflow:     "hidden",
-                        boxShadow:    isTop ? `0 0 16px ${m.color}55` : "none",
+                        boxShadow:    isTop ? `0 0 ${compact ? 6 : 16}px ${m.color}55` : "none",
                       }}>
                       <div style={{
                         position:        "absolute", inset: 0,
                         backgroundColor: m.color,
                         opacity:         isTop ? tk.barOpTop : tk.barOpOther,
                       }} />
-                      {/* GW score pinned to right edge of fill — moves with bar */}
-                      {m.gwScore > 0 && (
+                      {/* GW score — hidden when compact (bar too thin) */}
+                      {!compact && m.gwScore > 0 && (
                         <span style={{
                           position:      "absolute", right: 7,
                           top:           "50%", transform: "translateY(-50%)",
@@ -671,9 +709,10 @@ export default function App() {
                   </div>
 
                   {/* Total score — right of bar */}
-                  <div style={{ textAlign: "right", width: 72, flexShrink: 0,
-                                fontFamily: mono, fontSize: "1.5rem", fontWeight: 900,
-                                lineHeight: 1, color: isTop ? tk.accent : tk.text }}>
+                  <div style={{ textAlign: "right", width: compact ? 52 : 72, flexShrink: 0,
+                                fontFamily: mono, fontSize: compact ? "0.95rem" : "1.5rem",
+                                fontWeight: 900, lineHeight: 1,
+                                color: isTop ? tk.accent : tk.text }}>
                     {displayTotal.toLocaleString()}
                   </div>
                 </div>
@@ -681,6 +720,7 @@ export default function App() {
             );
           })}
         </motion.div>
+        </div>
         </div>
 
 
