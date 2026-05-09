@@ -45,8 +45,8 @@ const isoToFlag = (iso: string): string => {
 };
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
-const SH = 78;
-const SG = 6;
+const SH = 82;
+const SG = 10;
 const FRAME_MS = 33;
 
 const SPEEDS = [
@@ -557,12 +557,18 @@ export default function App() {
                 initial={false}
                 animate={{ y }}
                 transition={{ duration: 0.55, ease: [0.4, 0, 0.2, 1] }}
-                style={{ position: "absolute", top: 0, left: 0, right: 0, height: SH,
-                         display: "flex", flexDirection: "column", justifyContent: "center",
-                         padding: "0 4px",
-                         borderBottom: `1px solid ${tk.border}` }}>
+                style={{
+                  position: "absolute", top: 0, left: 0, right: 0, height: SH,
+                  display: "flex", flexDirection: "column", justifyContent: "center",
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  backgroundColor: theme === "dark" ? "rgba(255,255,255,0.06)" : "#ffffff",
+                  boxShadow: theme === "dark"
+                    ? "0 2px 8px rgba(0,0,0,0.35)"
+                    : "0 1px 8px rgba(0,0,0,0.09)",
+                }}>
 
-                {/* Top row: rank badge | circle | name + team + flag | total score */}
+                {/* Top row: rank badge | circle | name + team + flag */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
 
                   {/* Rank badge — colored square */}
@@ -613,19 +619,12 @@ export default function App() {
                       </span>
                     )}
                   </div>
-
-                  {/* Total score */}
-                  <div style={{ textAlign: "right", width: 68, flexShrink: 0,
-                                fontFamily: mono, fontSize: "1.5rem", fontWeight: 900,
-                                lineHeight: 1, color: isTop ? tk.accent : tk.text }}>
-                    {displayTotal.toLocaleString()}
-                  </div>
                 </div>
 
-                {/* Bottom row: indented bar + GW score */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 74 }}>
+                {/* Bottom row: bar (indented) + total score */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, paddingLeft: 74 }}>
 
-                  {/* Bar track — no background so only colored fill is visible */}
+                  {/* Bar track — transparent, only colored fill visible */}
                   <div style={{ flex: 1, position: "relative", height: 18, borderRadius: 4,
                                 overflow: "hidden", backgroundColor: "transparent" }}>
                     <motion.div
@@ -657,7 +656,7 @@ export default function App() {
                           pointerEvents: "none", zIndex: 2,
                         }}>LEADER</span>
                       )}
-                      {/* GW score pinned to right edge of fill — moves with the bar */}
+                      {/* GW score pinned to right edge of fill — moves with bar */}
                       {m.gwScore > 0 && (
                         <span style={{
                           position:      "absolute", right: 7,
@@ -669,6 +668,13 @@ export default function App() {
                         }}>+{m.gwScore}</span>
                       )}
                     </motion.div>
+                  </div>
+
+                  {/* Total score — right of bar */}
+                  <div style={{ textAlign: "right", width: 72, flexShrink: 0,
+                                fontFamily: mono, fontSize: "1.5rem", fontWeight: 900,
+                                lineHeight: 1, color: isTop ? tk.accent : tk.text }}>
+                    {displayTotal.toLocaleString()}
                   </div>
                 </div>
               </motion.div>
