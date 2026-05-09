@@ -654,17 +654,6 @@ export default function App() {
                         backgroundColor: m.color,
                         opacity:         isTop ? tk.barOpTop : tk.barOpOther,
                       }} />
-                      {/* LEADER label inside bar */}
-                      {isTop && pct > 15 && (
-                        <span style={{
-                          position:      "absolute", left: 10,
-                          top:           "50%", transform: "translateY(-50%)",
-                          fontSize:      "0.65rem", fontWeight: 900,
-                          textTransform: "uppercase", letterSpacing: "0.12em",
-                          color:         "rgba(255,255,255,0.95)",
-                          pointerEvents: "none", zIndex: 2,
-                        }}>LEADER</span>
-                      )}
                       {/* GW score pinned to right edge of fill — moves with bar */}
                       {m.gwScore > 0 && (
                         <span style={{
@@ -692,25 +681,6 @@ export default function App() {
         </motion.div>
         </div>
 
-        {/* ── Winner banner ── */}
-        {isFinale && winner && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: captureMode ? 0 : 0.5 }}
-            style={{ marginBottom: 24, display: "flex", alignItems: "center", gap: 12,
-                     padding: "12px 16px", borderRadius: 8,
-                     border: `1px solid ${winner.color}33`,
-                     backgroundColor: `${winner.color}0d` }}>
-            <Trophy size={18} style={{ color: "#ffd700", flexShrink: 0 }} />
-            <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.4 }}>
-              <span style={{ fontWeight: 900, textTransform: "uppercase",
-                             letterSpacing: "0.04em", color: winner.color }}>{winner.name}</span>
-              <span style={{ color: tk.dim }}> wins {fplData?.leagueName} · </span>
-              <span style={{ fontWeight: 900, fontFamily: mono }}>
-                {Math.round(winner.total).toLocaleString()} pts
-              </span>
-            </p>
-          </motion.div>
-        )}
 
         {/* ── Controls (hidden in capture mode) ── */}
         {!captureMode && (
