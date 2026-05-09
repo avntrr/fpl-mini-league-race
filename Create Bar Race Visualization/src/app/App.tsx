@@ -45,8 +45,7 @@ const isoToFlag = (iso: string): string => {
 };
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
-const SH = 78;
-const SG = 6;
+// SH/SG moved inside component — see below
 const FRAME_MS = 33;
 
 const SPEEDS = [
@@ -64,6 +63,9 @@ export default function App() {
   // ── Capture mode (Playwright screenshot renderer) ──
   const captureMode = typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("capture");
+
+  const SH = captureMode ? 68 : 78;
+  const SG = captureMode ? 4  : 6;
 
   // ── Theme — in capture mode read from URL (?theme=light), else localStorage ──
   const [theme, setTheme] = useState<Theme>(() => {
@@ -477,12 +479,12 @@ export default function App() {
         input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; }
       `}</style>
 
-      <div style={{ maxWidth: 672, margin: "0 auto", padding: "32px 16px 48px" }}>
+      <div style={{ maxWidth: 672, margin: "0 auto", padding: captureMode ? "8px 16px 8px" : "24px 16px 32px" }}>
 
         {/* ── Header ── */}
         <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
           transition={{ duration: captureMode ? 0 : 0.45 }}
-          style={{ marginBottom: 40 }}>
+          style={{ marginBottom: captureMode ? 14 : 28 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
             <div>
               <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.7rem",
@@ -520,7 +522,7 @@ export default function App() {
         </motion.header>
 
         {/* ── GW counter + progress ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 40 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: captureMode ? 10 : 24 }}>
           {/* GW number group */}
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexShrink: 0 }}>
             <span style={{ color: tk.dim, fontFamily: mono, fontSize: "1.1rem",
@@ -547,10 +549,10 @@ export default function App() {
 
         {/* ── Bar chart ── */}
         <div style={{
-          borderRadius: 14, marginBottom: 40,
+          borderRadius: 14, marginBottom: captureMode ? 0 : 32,
           backgroundColor: theme === "dark" ? "rgba(255,255,255,0.04)" : "#ffffff",
           boxShadow: theme === "dark" ? "0 2px 12px rgba(0,0,0,0.4)" : "0 2px 12px rgba(0,0,0,0.08)",
-          padding: "8px 14px",
+          padding: captureMode ? "4px 10px" : "8px 14px",
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: captureMode ? 0 : 0.4 }}
