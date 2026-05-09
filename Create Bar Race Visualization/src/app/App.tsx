@@ -491,7 +491,7 @@ export default function App() {
                           fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", margin: 0 }}>
                 Fantasy Premier League
               </p>
-              <p style={{ color: tk.dim, fontFamily: condensed, fontSize: "0.75rem",
+              <p style={{ color: tk.dim, fontFamily: condensed, fontSize: "1rem",
                           letterSpacing: "0.04em", textTransform: "uppercase", margin: "2px 0 0" }}>
                 {fplData?.leagueName}
               </p>
