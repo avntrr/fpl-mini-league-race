@@ -484,10 +484,16 @@ export default function App() {
           transition={{ duration: captureMode ? 0 : 0.45 }}
           style={{ marginBottom: 40 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-            <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.625rem",
-                        letterSpacing: "0.3em", textTransform: "uppercase", margin: 0 }}>
-              Fantasy Premier League · {fplData?.leagueName}
-            </p>
+            <div>
+              <p style={{ color: tk.accent, fontFamily: mono, fontSize: "0.7rem",
+                          fontWeight: 700, letterSpacing: "0.3em", textTransform: "uppercase", margin: 0 }}>
+                Fantasy Premier League
+              </p>
+              <p style={{ color: tk.dim, fontFamily: mono, fontSize: "0.65rem",
+                          letterSpacing: "0.2em", textTransform: "uppercase", margin: "2px 0 0" }}>
+                {fplData?.leagueName}
+              </p>
+            </div>
             {!captureMode && (
               <button onClick={toggleTheme}
                 title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -646,17 +652,14 @@ export default function App() {
                         backgroundColor: m.color,
                         opacity:         isTop ? tk.barOpTop : tk.barOpOther,
                       }} />
-                      {/* LEADER pill inside bar */}
+                      {/* LEADER label inside bar */}
                       {isTop && pct > 15 && (
                         <span style={{
-                          position:      "absolute", left: 8,
+                          position:      "absolute", left: 10,
                           top:           "50%", transform: "translateY(-50%)",
-                          fontSize:      "0.5rem", fontWeight: 900,
-                          textTransform: "uppercase", letterSpacing: "0.15em",
-                          color:         "#fff",
-                          border:        "1px solid rgba(255,255,255,0.5)",
-                          borderRadius:  3, padding: "1px 5px",
-                          backgroundColor: "rgba(255,255,255,0.12)",
+                          fontSize:      "0.65rem", fontWeight: 900,
+                          textTransform: "uppercase", letterSpacing: "0.12em",
+                          color:         "rgba(255,255,255,0.95)",
                           pointerEvents: "none", zIndex: 2,
                         }}>LEADER</span>
                       )}
