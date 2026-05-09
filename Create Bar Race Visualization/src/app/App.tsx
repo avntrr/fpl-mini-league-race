@@ -500,8 +500,8 @@ export default function App() {
           </div>
           <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
             <h1 style={{ fontWeight: 900, textTransform: "uppercase", lineHeight: 1,
-                         fontSize: "clamp(2.5rem, 10vw, 4.5rem)", margin: 0 }}>
-              Season<br />Race
+                         fontSize: "clamp(1.8rem, 8vw, 3.5rem)", margin: 0, whiteSpace: "nowrap" }}>
+              Season Race
             </h1>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <p style={{ fontSize: "0.75rem", color: tk.dim, letterSpacing: "0.1em",
@@ -514,20 +514,23 @@ export default function App() {
         </motion.header>
 
         {/* ── GW counter + progress ── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 40 }}>
-          <p style={{ color: tk.dim, fontFamily: mono, fontSize: "0.625rem",
-                      letterSpacing: "0.2em", textTransform: "uppercase", flexShrink: 0, margin: 0 }}>GW</p>
-          <motion.span key={gwInt}
-            initial={{ color: tk.accent, scale: 1.18 }}
-            animate={{ color: tk.text,   scale: 1 }}
-            transition={{ duration: captureMode ? 0 : 0.3 }}
-            style={{ fontFamily: mono, fontSize: "3rem", fontWeight: 900,
-                     lineHeight: 1, minWidth: "3ch", display: "block" }}>
-            {String(gwInt).padStart(2, "0")}
-          </motion.span>
-          <span style={{ color: tk.dim, fontSize: "1.25rem", marginRight: 4 }}>
-            /{String(totalGws).padStart(2, "0")}
-          </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 40 }}>
+          {/* GW number group */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexShrink: 0 }}>
+            <span style={{ color: tk.dim, fontFamily: mono, fontSize: "1.1rem",
+                           fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>GW</span>
+            <motion.span key={gwInt}
+              initial={{ color: tk.accent, scale: 1.18 }}
+              animate={{ color: tk.text,   scale: 1 }}
+              transition={{ duration: captureMode ? 0 : 0.3 }}
+              style={{ fontFamily: mono, fontSize: "3rem", fontWeight: 900,
+                       lineHeight: 1, minWidth: "2ch", display: "block" }}>
+              {String(gwInt).padStart(2, "0")}
+            </motion.span>
+            <span style={{ color: tk.dim, fontSize: "1.1rem", fontWeight: 700, fontFamily: mono }}>
+              /{String(totalGws).padStart(2, "0")}
+            </span>
+          </div>
           <div style={{ flex: 1, position: "relative", height: 2,
                         background: tk.border, borderRadius: 2, overflow: "hidden" }}>
             <motion.div style={{ position: "absolute", inset: "0 auto 0 0",
