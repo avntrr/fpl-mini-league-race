@@ -334,7 +334,7 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24 }}>
             <button onClick={toggleTheme}
               title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              style={{ background: "none", border: `1px solid ${tk.border}`, borderRadius: 8,
+              style={{ background: "none", border: "none", borderRadius: 8,
                        padding: "6px 8px", cursor: "pointer", color: tk.dim, display: "flex", alignItems: "center" }}>
               {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
             </button>
