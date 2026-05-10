@@ -342,7 +342,23 @@ export default function App() {
     });
   }, [gw, fplData]);
 
-  const sorted   = useMemo(() => [...frame].sort((a, b) => b.total - a.total).slice(0, topN), [frame, topN]);
+  // Rank ordering: gunakan TARGET GW (integer berikutnya) bukan nilai interpolasi.
+  // Ketika gw=1.038 (sudah melewati batas integer 1→2), rank langsung pakai GW2 data.
+  // Rank hanya berubah SEKALI saat gw melewati batas integer → Framer Motion punya
+  // waktu penuh (steps_per_gw frames) untuk animasi slide tanpa diinterupsi.
+  // Ketika gw tepat integer (gw=1.0, 2.0, ...) → rank pakai GW itu sendiri (hold/settle).
+  const sorted   = useMemo(() => {
+    if (!fplData) return [];
+    const rankGw = Number.isInteger(gw)
+      ? Math.max(1, Math.min(fplData.totalGws, gw))
+      : Math.min(fplData.totalGws, Math.floor(gw) + 1);
+    return fplData.managers
+      .map((m, i) => ({ id: m.id, score: fplData.scores[i]?.[rankGw - 1] ?? 0 }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topN)
+      .map(r => frame.find(f => f.id === r.id)!)
+      .filter((m): m is NonNullable<typeof m> => Boolean(m));
+  }, [gw, fplData, frame, topN]);
   const maxTot   = sorted[0]?.total ?? 1;
   // Fixed scale: highest total across ALL GWs so bars grow throughout the race
   const finalMaxTot = useMemo(() => {
