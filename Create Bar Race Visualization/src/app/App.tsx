@@ -557,7 +557,7 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
             <p style={{ color: tk.dim, fontFamily: condensed, fontSize: "1rem",
                         letterSpacing: "0.04em", textTransform: "uppercase", margin: 0 }}>
-              {fplData?.leagueName}
+              {fplData?.leagueName.replace(/\bTOP\s+\d+\b/i, `TOP ${topN}`)}
             </p>
             <p style={{ fontFamily: condensed, fontSize: "1rem", fontWeight: 400,
                         color: tk.dim, letterSpacing: "0.04em", textTransform: "uppercase",
