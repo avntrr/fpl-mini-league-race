@@ -197,15 +197,23 @@ def render_race(
             # 540×960 logical px × device_scale_factor 2 = 1080×1920 screenshot (Full HD 9:16)
             page    = browser.new_page(viewport={"width": 540, "height": 960}, device_scale_factor=2)
 
+            # Install fake clock SEBELUM goto() agar Framer Motion tidak pernah
+            # melihat real performance.now(). Jika clock di-install setelah page load,
+            # performance.now() melompat mundur ke 0 (time reversal) yang menyebabkan
+            # Framer Motion kehilangan referensi startTime → animasi tidak smooth di video.
+            page.clock.install(time=0)
+
             page.goto(f"http://127.0.0.1:{port}?capture=1&theme={theme}")
+
+            # Step-through init: maju 30ms × 100 = 3000ms fake time.
+            # Memberi React/Framer Motion cukup waktu untuk mount & inisialisasi
+            # dengan fake clock. useEffect (MessageChannel) tetap berjalan normal
+            # di real time — tidak terpengaruh fake clock.
+            for _ in range(100):
+                page.clock.run_for(30)
+
             # Tunggu React mount + data loaded + first render selesai
             page.wait_for_function("() => window.__FPL_READY === true", timeout=20_000)
-
-            # Install fake clock SETELAH halaman load.
-            # Dengan fake clock: requestAnimationFrame (dipakai Framer Motion) HANYA
-            # maju saat kita panggil page.clock.run_for(). Real-time I/O screenshot tidak
-            # mempengaruhi kecepatan animasi. React tetap jalan normal via MessageChannel.
-            page.clock.install(time=0)
 
             # Scale content to 85% — identical visual to the website, centered in 1080×1920.
             # Gives ~144px top/bottom margin (content = 85% × 1920 = 1632px, centered).
