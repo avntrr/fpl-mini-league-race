@@ -99,6 +99,7 @@ export default function App() {
   // ── Download state ──
   const [downloading, setDownloading] = useState(false);
   const [dlMsg, setDlMsg]             = useState("");
+  const [videoFps, setVideoFps]       = useState<30 | 60>(30);
 
   const totalGws = fplData?.totalGws ?? 38;
 
@@ -217,7 +218,7 @@ export default function App() {
       const res  = await fetch("/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, league_id: leagueId, country, top_n: topN, speed: spd, theme }),
+        body: JSON.stringify({ mode, league_id: leagueId, country, top_n: topN, speed: spd, theme, fps: videoFps }),
       });
       const { job_id, error } = await res.json();
       if (error) { setDlMsg("Error: " + error); setDownloading(false); return; }
@@ -823,7 +824,22 @@ export default function App() {
                   <Loader2 size={11} className="animate-spin" />{dlMsg}
                 </span>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontFamily: mono, fontSize: "0.6rem", color: tk.dim, textTransform: "uppercase", letterSpacing: "0.08em" }}>FPS</span>
+                    {([30, 60] as const).map(f => (
+                      <button key={f} onClick={() => setVideoFps(f)}
+                        style={{
+                          padding: "3px 8px", borderRadius: 4, cursor: "pointer",
+                          fontFamily: mono, fontSize: "0.65rem", fontWeight: 700,
+                          border: videoFps === f ? `1px solid ${tk.accent}60` : `1px solid ${tk.border}`,
+                          backgroundColor: videoFps === f ? `${tk.accent}22` : "transparent",
+                          color: videoFps === f ? tk.accent : tk.dim,
+                        }}>
+                        {f}
+                      </button>
+                    ))}
+                  </div>
                   <button onClick={downloadMp4}
                     style={{ display: "flex", alignItems: "center", gap: 8,
                              padding: "7px 14px", borderRadius: 6, border: "none",
