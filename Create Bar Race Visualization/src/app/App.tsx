@@ -693,29 +693,24 @@ export default function App() {
                     }
                   </div>
 
-                  {/* Name (row 1) + team + flag (row 2) — column layout so nothing wraps horizontally */}
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
-                                justifyContent: "center", gap: 2 }}>
-                    {/* Row 1: manager name */}
+                  {/* Name + team + flag — single row layout */}
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
                     <span style={{ fontSize: compact ? "12px" : `${fName}px`, fontWeight: 700,
                                    textTransform: "uppercase", letterSpacing: "0.04em",
                                    color: tk.text, lineHeight: 1.2,
-                                   overflow: "hidden", whiteSpace: "nowrap" }}>
+                                   overflow: "hidden", whiteSpace: "nowrap", flexShrink: 1 }}>
                       {m.name}
                     </span>
-                    {/* Row 2: team name + flag */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                      <span style={{ fontSize: compact ? "10px" : `${fTeam}px`, color: tk.dim,
-                                     overflow: "hidden", whiteSpace: "nowrap",
-                                     minWidth: 0, flexShrink: 1 }}>
-                        {resolvedTeamMap[m.team]?.fullName ?? m.team}
+                    <span style={{ fontSize: compact ? "10px" : `${fTeam}px`, color: tk.dim,
+                                   overflow: "hidden", whiteSpace: "nowrap",
+                                   minWidth: 0, flexShrink: 2 }}>
+                      {resolvedTeamMap[m.team]?.fullName ?? m.team}
+                    </span>
+                    {resolvedTeamMap[m.team]?.iso && (
+                      <span style={{ fontSize: "12px", flexShrink: 0, lineHeight: 1 }}>
+                        {isoToFlag(resolvedTeamMap[m.team].iso!)}
                       </span>
-                      {resolvedTeamMap[m.team]?.iso && (
-                        <span style={{ fontSize: "13px", flexShrink: 0, lineHeight: 1 }}>
-                          {isoToFlag(resolvedTeamMap[m.team].iso!)}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
 
