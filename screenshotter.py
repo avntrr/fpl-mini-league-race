@@ -201,6 +201,12 @@ def render_race(
             # Tunggu React mount + data loaded + first render selesai
             page.wait_for_function("() => window.__FPL_READY === true", timeout=20_000)
 
+            # Install fake clock SETELAH halaman load.
+            # Dengan fake clock: requestAnimationFrame (dipakai Framer Motion) HANYA
+            # maju saat kita panggil page.clock.tick(). Real-time I/O screenshot tidak
+            # mempengaruhi kecepatan animasi. React tetap jalan normal via MessageChannel.
+            page.clock.install(time=0)
+
             # Scale content to 85% — identical visual to the website, centered in 1080×1920.
             # Gives ~144px top/bottom margin (content = 85% × 1920 = 1632px, centered).
             _BG = {"dark": "#0a0e1a", "light": "#f8fafc"}
@@ -225,28 +231,32 @@ def render_race(
               }}
             """)
 
+            MS_PER_FRAME = round(1000 / FPS)  # 33ms at 30fps
+
             for fi in range(total_frames):
                 gw_val = _gw_float_for_frame(fi, total_gws, steps_per_gw)
 
-                # Set frame, tandai belum ready, tunggu React re-render selesai
+                # Set frame, tandai belum ready, tunggu React re-render selesai.
+                # React menggunakan MessageChannel (bukan setTimeout/rAF) sehingga
+                # tidak terpengaruh fake clock — wait_for_function tetap berjalan normal.
                 page.evaluate(
                     f"() => {{ window.__FPL_READY = false; window.__FPL_SEEK({gw_val:.6f}); }}"
                 )
                 page.wait_for_function("() => window.__FPL_READY === true", timeout=5_000)
 
-                # Tunggu 33ms — sama dengan FRAME_MS interval di browser.
-                # Framer Motion memakai requestAnimationFrame real-time, sehingga
-                # setelah 33ms posisi animasinya identik dengan yang terlihat di website.
-                # Frame terakhir: tunggu lebih lama agar FM selesai (duration 550ms + margin).
-                wait_ms = 650 if fi == total_frames - 1 else 33
-                page.wait_for_timeout(wait_ms)
+                # Maju tepat satu video frame (33ms) dalam fake time.
+                # Framer Motion rAF maju persis 33ms → animasi sama persis dengan web,
+                # tidak peduli berapa lama screenshot I/O memakan waktu nyata.
+                page.clock.tick(MS_PER_FRAME)
 
                 page.screenshot(path=str(frames_dir / f"frame_{fi:06d}.png"))
 
                 if progress_cb:
                     progress_cb(fi + 1, total_with_hold)
 
-            # Hold frames: FM sudah settled, capture posisi final selama 1.5 detik
+            # Hold frames: advance clock agar animasi settle (>550ms duration FM),
+            # lalu capture posisi final selama 1.5 detik.
+            page.clock.tick(600)  # Pastikan animasi FM selesai (duration 550ms + margin)
             for i in range(HOLD_FRAMES):
                 page.screenshot(path=str(frames_dir / f"frame_{total_frames + i:06d}.png"))
                 if progress_cb:
