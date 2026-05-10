@@ -701,7 +701,8 @@ export default function App() {
                                    whiteSpace: "nowrap", flexShrink: 0 }}>
                       {m.name}
                     </span>
-                    <span style={{ fontSize: compact ? "10px" : `${fTeam}px`, color: tk.dim,
+                    <span style={{ fontSize: compact ? "10px" : `${fTeam}px`,
+                                   color: theme === "dark" ? "#a3a3a3" : "#374151",
                                    overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
                                    minWidth: 0, flexShrink: 1 }}>
                       {resolvedTeamMap[m.team]?.fullName ?? m.team}
