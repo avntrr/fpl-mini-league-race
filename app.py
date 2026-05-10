@@ -241,8 +241,11 @@ def generate():
     force   = bool(data.get("force_refresh", False))
     speed   = int(data.get("speed", 0))
     theme   = data.get("theme", "dark")
+    fps     = int(data.get("fps", 30))
     if theme not in ("dark", "light"):
         theme = "dark"
+    if fps not in (30, 60):
+        fps = 30
 
     league_id: int | None = None
     if mode == "mini":
@@ -256,7 +259,7 @@ def generate():
 
     threading.Thread(
         target=_run_job,
-        args=(job_id, mode, league_id, country, top_n, force, speed, theme),
+        args=(job_id, mode, league_id, country, top_n, force, speed, theme, fps),
         daemon=True,
     ).start()
 
@@ -290,6 +293,7 @@ def _run_job(
     force_refresh: bool,
     speed: int = 0,
     theme: str = "dark",
+    fps: int = 30,
 ) -> None:
     """Worker render MP4 in a separate thread."""
     speed_labels = ["1x", "2x", "4x"]
@@ -302,7 +306,7 @@ def _run_job(
             mode, league_id, country, top_n, force_refresh
         )
 
-        jobs[job_id]["message"] = f"Rendering {len(df)} GW, top {top_n}, speed {spd_label}..."
+        jobs[job_id]["message"] = f"Rendering {len(df)} GW, top {top_n}, speed {spd_label}, {fps}fps..."
 
         # Unique filename per mode
         if mode == "global":
@@ -311,7 +315,7 @@ def _run_job(
             slug = f"nation_{(country or 'unknown').lower().replace(' ', '_')}_top{top_n}"
         else:
             slug = f"mini_{league_id}_top{top_n}"
-        output_filename = f"race_{slug}_spd{spd_label}_{theme}.mp4"
+        output_filename = f"race_{slug}_spd{spd_label}_{fps}fps_{theme}.mp4"
         output_path     = OUTPUT_DIR / output_filename
 
         def progress(current: int, total: int) -> None:
@@ -328,6 +332,7 @@ def _run_job(
             progress_cb=progress,
             speed=speed,
             theme=theme,
+            fps=fps,
         )
 
         jobs[job_id] = {

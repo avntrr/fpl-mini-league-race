@@ -20,11 +20,12 @@ BASE_DIR   = Path(__file__).parent
 REACT_DIR  = BASE_DIR / "Create Bar Race Visualization"
 REACT_DIST = REACT_DIR / "dist"
 
-FPS = 30
-
 # Frames per GW untuk setiap speed index (0=1x, 1=2x, 2=4x)
 # Harus sama persis dengan SPEEDS[i].stepsPerGw di App.tsx!
-STEPS_BY_SPEED = [26, 13, 5]
+STEPS_BY_SPEED = {
+    30: [26, 13, 5],   # 30fps: 26/30fps = 0.87s per GW
+    60: [52, 26, 10],  # 60fps: 52/60fps = 0.87s per GW (durasi sama, 2x smoother)
+}
 
 PALETTE = [
     "#00d4aa", "#ff6b6b", "#ffd93d", "#a855f7", "#f97316",
@@ -151,6 +152,7 @@ def render_race(
     progress_cb: "callable[[int, int], None] | None" = None,
     speed: int = 0,
     theme: str = "dark",
+    fps: int = 30,
 ) -> None:
     """Render animasi bar chart race ke MP4 menggunakan Playwright + React.
 
@@ -162,10 +164,13 @@ def render_race(
         managers_map: {team_name: manager_name}
         progress_cb:  Callback(frame, total) untuk progress reporting
         speed:        0=1x, 1=2x, 2=4x
+        fps:          30 (standard) atau 60 (smoother, ~2x render time)
     """
     from playwright.sync_api import sync_playwright
 
-    steps_per_gw = STEPS_BY_SPEED[max(0, min(speed, len(STEPS_BY_SPEED) - 1))]
+    fps = fps if fps in STEPS_BY_SPEED else 30
+    steps_table  = STEPS_BY_SPEED[fps]
+    steps_per_gw = steps_table[max(0, min(speed, len(steps_table) - 1))]
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # 1. Build/rebuild React kalau perlu
@@ -239,7 +244,7 @@ def render_race(
               }}
             """)
 
-            MS_PER_FRAME = round(1000 / FPS)  # 33ms at 30fps
+            MS_PER_FRAME = round(1000 / fps)  # 33ms at 30fps, 17ms at 60fps
 
             for fi in range(total_frames):
                 gw_val = _gw_float_for_frame(fi, total_gws, steps_per_gw)
@@ -284,7 +289,7 @@ def render_race(
     subprocess.run(
         [
             "ffmpeg", "-y",
-            "-framerate", str(FPS),
+            "-framerate", str(fps),
             "-i", str(frames_dir / "frame_%06d.png"),
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",

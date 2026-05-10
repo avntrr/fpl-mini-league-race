@@ -28,6 +28,7 @@ def render_race(
     progress_cb: "callable[[int, int], None] | None" = None,
     speed: int = 0,
     theme: str = "dark",
+    fps: int = 30,
 ) -> None:
     """Render bar chart race to MP4. Uses Playwright if available, falls back to matplotlib."""
     try:
@@ -42,6 +43,7 @@ def render_race(
             progress_cb=progress_cb,
             speed=speed,
             theme=theme,
+            fps=fps,
         )
         return
     except ImportError:
