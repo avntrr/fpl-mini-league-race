@@ -24,24 +24,20 @@ interface FplData {
 }
 
 // FPL uses non-standard codes for UK nations.
-// England/Scotland/Wales have their own subdivision flag emojis (tag characters).
-// Northern Ireland has no official emoji → use 🇬🇧.
-const FPL_FLAG_OVERRIDES: Record<string, string> = {
-  EN: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}", // 🏴󠁧󠁢󠁥󠁮󠁧󠁿
-  SC: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}", // 🏴󠁧󠁢󠁳󠁣󠁴󠁿
-  WA: "\u{1F3F4}\u{E0067}\u{E0062}\u{E0077}\u{E006C}\u{E0073}\u{E007F}", // 🏴󠁧󠁢󠁷󠁬󠁳󠁿
-  NI: "\u{1F1EC}\u{1F1E7}",                                               // 🇬🇧
+// Mapping FPL custom codes → flagcdn.com country codes
+const FPL_FLAG_CDN: Record<string, string> = {
+  EN: "gb-eng",
+  SC: "gb-sct",
+  WA: "gb-wls",
+  NI: "gb",
 };
 
-/** Convert 2-letter ISO code (or FPL custom code) to flag emoji. "ID" → 🇮🇩 */
-const isoToFlag = (iso: string): string => {
+/** Convert ISO code to flagcdn.com image URL. "ID" → https://flagcdn.com/20x15/id.png */
+const isoToFlagUrl = (iso: string): string => {
   if (!iso) return "";
   const upper = iso.toUpperCase();
-  if (upper in FPL_FLAG_OVERRIDES) return FPL_FLAG_OVERRIDES[upper];
-  if (upper.length !== 2) return "";
-  return upper.split("").map(c =>
-    String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)
-  ).join("");
+  const code = FPL_FLAG_CDN[upper] ?? upper.toLowerCase();
+  return `https://flagcdn.com/20x15/${code}.png`;
 };
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
@@ -320,7 +316,7 @@ export default function App() {
   }, [fplData]);
 
   const mono      = "'JetBrains Mono', monospace";
-  const condensed = "'Barlow Condensed', sans-serif";
+  const condensed = "'Barlow Condensed', 'Noto Sans', sans-serif";
 
   /* ════════════════════════════════════════════════════════════════════════
      Phase: FORM
@@ -708,9 +704,11 @@ export default function App() {
                       {resolvedTeamMap[m.team]?.fullName ?? m.team}
                     </span>
                     {resolvedTeamMap[m.team]?.iso && (
-                      <span style={{ fontSize: "12px", flexShrink: 0, lineHeight: 1 }}>
-                        {isoToFlag(resolvedTeamMap[m.team].iso!)}
-                      </span>
+                      <img
+                        src={isoToFlagUrl(resolvedTeamMap[m.team].iso!)}
+                        alt=""
+                        style={{ width: 16, height: 12, flexShrink: 0, borderRadius: 1, objectFit: "cover" }}
+                      />
                     )}
                   </div>
                 </div>
