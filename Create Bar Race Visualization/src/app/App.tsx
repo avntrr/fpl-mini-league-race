@@ -64,7 +64,10 @@ export default function App() {
   const captureMode = typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("capture");
 
-  const SG      = captureMode ? 4 : 8;  // 8px gap web → garis pemisah lebih jelas
+  const SG      = captureMode ? 4 : 8;
+
+  // Responsive viewport width — dipakai untuk scaling dimensi di web mode
+  const vw = typeof window !== "undefined" ? window.innerWidth : 390;
 
   // ── Theme — in capture mode read from URL (?theme=light), else localStorage ──
   const [theme, setTheme] = useState<Theme>(() => {
@@ -106,10 +109,17 @@ export default function App() {
   // Adaptive row height + card zoom for captureMode (fits 5–20 teams in 1080×1920)
   const _AVAIL_CH = 793; // px available for chart in 960px capture viewport
   const _BASE_SH  = captureMode ? 68 : 78;
-  const _MIN_SH   = captureMode ? 34 : 44; // captureMode rows are much more compact
+  const _MIN_SH   = captureMode ? 34 : 44;
+  // Web mode: SH fluid berdasarkan viewport (62–78px); capture mode: adaptive ke topN
   const SH = captureMode
     ? Math.max(_MIN_SH, Math.min(_BASE_SH, Math.floor((_AVAIL_CH + SG) / topN) - SG))
-    : _BASE_SH;
+    : Math.round(Math.min(78, Math.max(62, vw * 0.2)));
+
+  // Dimensi responsif untuk web mode (semua = nilai asli di ≥390px, menyusut di bawahnya)
+  const rBadge    = captureMode ? 36 : Math.round(Math.min(36, vw * 0.092));   // rank badge
+  const rCircle   = captureMode ? 22 : Math.round(Math.min(22, vw * 0.056));   // movement circle
+  const rIndent   = captureMode ? 74 : Math.round(Math.min(74, vw * 0.19));    // paddingLeft bar row
+  const rScore    = captureMode ? 72 : Math.round(Math.min(72, vw * 0.185));   // score div width
   const _rawCH       = topN * (SH + SG) - SG;
   const captureCardZoom = (captureMode && _rawCH > _AVAIL_CH) ? _AVAIL_CH / _rawCH : 1;
   // compact = video render with 15 or 20 teams → slim bars, no rank box
@@ -511,8 +521,7 @@ export default function App() {
   ════════════════════════════════════════════════════════════════════════ */
   return (
     <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
-                  fontFamily: condensed, transition: "background 0.3s, color 0.3s",
-                  display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
+                  fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
       <style>{`
         ::-webkit-scrollbar { display: none; }
         * { scrollbar-width: none; }
@@ -520,10 +529,8 @@ export default function App() {
         input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; }
       `}</style>
 
-      {/* zoom: 0.85 scales the entire UI to 85% for web — flex parent centers the zoomed block */}
-      <div style={{ width: "100%", maxWidth: 672,
-                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px",
-                    zoom: captureMode ? 1 : 0.85 }}>
+      <div style={{ maxWidth: 672, margin: "0 auto",
+                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px" }}>
 
         {/* ── Header ── */}
         <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
@@ -650,12 +657,12 @@ export default function App() {
                     }}>{rank + 1}</span>
                   ) : (
                     <div style={{
-                      width: 36, height: 36, flexShrink: 0,
-                      borderRadius: 8, backgroundColor: m.color,
+                      width: rBadge, height: rBadge, flexShrink: 0,
+                      borderRadius: Math.round(rBadge * 0.22), backgroundColor: m.color,
                       display: "flex", alignItems: "center", justifyContent: "center",
                       transition: "background-color 0.5s",
                     }}>
-                      <span style={{ fontSize: "1rem", fontWeight: 900, color: "#fff", fontFamily: mono }}>
+                      <span style={{ fontSize: `${rBadge * 0.028}rem`, fontWeight: 900, color: "#fff", fontFamily: mono }}>
                         {rank + 1}
                       </span>
                     </div>
@@ -663,7 +670,7 @@ export default function App() {
 
                   {/* Rank-change indicator */}
                   <div style={{
-                    width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                    width: rCircle, height: rCircle, borderRadius: "50%", flexShrink: 0,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     backgroundColor: rankDelta > 0 ? "#16a34a"
                                    : rankDelta < 0 ? "#dc2626"
@@ -671,10 +678,11 @@ export default function App() {
                     transition: "background-color 0.4s",
                   }}>
                     {rankDelta > 0
-                      ? <ChevronUp  size={12} color="#fff" strokeWidth={3} />
+                      ? <ChevronUp  size={Math.round(rCircle * 0.55)} color="#fff" strokeWidth={3} />
                       : rankDelta < 0
-                      ? <ChevronDown size={12} color="#fff" strokeWidth={3} />
-                      : <span style={{ width: 5, height: 5, borderRadius: "50%",
+                      ? <ChevronDown size={Math.round(rCircle * 0.55)} color="#fff" strokeWidth={3} />
+                      : <span style={{ width: Math.round(rCircle * 0.23), height: Math.round(rCircle * 0.23),
+                                       borderRadius: "50%",
                                        backgroundColor: tk.dim, display: "block" }} />
                     }
                   </div>
@@ -707,7 +715,7 @@ export default function App() {
 
                 {/* Bottom row: bar (indented) + total score */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8,
-                              paddingLeft: compact ? 53 : 74 }}>
+                              paddingLeft: compact ? 53 : rIndent }}>
 
                   {/* Bar track */}
                   <div style={{ flex: 1, position: "relative",
@@ -744,8 +752,9 @@ export default function App() {
                   </div>
 
                   {/* Total score — right of bar */}
-                  <div style={{ textAlign: "right", width: compact ? 52 : 72, flexShrink: 0,
-                                fontFamily: mono, fontSize: compact ? "0.95rem" : "1.5rem",
+                  <div style={{ textAlign: "right", width: compact ? 52 : rScore, flexShrink: 0,
+                                fontFamily: mono,
+                                fontSize: compact ? "0.95rem" : `clamp(1.1rem, ${vw * 0.004}rem, 1.5rem)`,
                                 fontWeight: 900, lineHeight: 1,
                                 color: isTop ? tk.accent : tk.text }}>
                     {displayTotal.toLocaleString()}
