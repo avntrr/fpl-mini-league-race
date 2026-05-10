@@ -57,9 +57,13 @@ const TOP_N_OPTIONS = [5, 8, 10, 15, 20];
 
 /* ── App ─────────────────────────────────────────────────────────────────── */
 /* ── Dot Wave Background (captureMode only) ─────────────────────────────── */
-// Canvas di-portal ke document.body agar TIDAK terpengaruh transform: scale(0.85)
-// pada #root yang diterapkan screenshotter. Dengan zIndex: -1, canvas berada
-// di bawah semua konten tapi di atas body background → full 1080×1920.
+// Canvas di-portal ke document.body agar TIDAK terpengaruh transform: scale(0.85).
+// zIndex: 0 agar di atas html background (solid), di bawah #root (z-index: 1).
+//
+// Formula langsung diadaptasi dari tfrere/xPavRR (THREE.js CanvasRenderer):
+//   scale = (sin((ix+count)*0.3)+1)*4 + (sin((iy+count)*0.5)+1)*4
+// Versi vertikal: row menggantikan ix (gelombang mengalir atas→bawah),
+// col menggantikan iy. UKURAN dot yang bervariasi, bukan hanya opacity.
 function DotWaveCanvas({ theme }: { theme: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -69,45 +73,52 @@ function DotWaveCanvas({ theme }: { theme: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Full viewport: tidak hardcode, pakai actual window size
     const dpr = window.devicePixelRatio || 1;
-    const W   = window.innerWidth;    // 540 di captureMode
-    const H   = window.innerHeight;   // 960 di captureMode
-    canvas.width  = W * dpr;          // 1080 physical
-    canvas.height = H * dpr;          // 1920 physical
+    const W   = window.innerWidth;
+    const H   = window.innerHeight;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
     ctx.scale(dpr, dpr);
 
-    const SPACING = 22;
-    const R       = 1.5;
-    const cols = Math.ceil(W / SPACING) + 1;
-    const rows = Math.ceil(H / SPACING) + 1;
+    const SPACING = 24;    // jarak antar titik (px) — cocok untuk 540×960
+    const R_MIN   = 0.3;   // radius minimum di lembah gelombang
+    const R_MAX   = 3.8;   // radius maksimum di puncak gelombang
+    const cols = Math.ceil(W / SPACING) + 2;
+    const rows = Math.ceil(H / SPACING) + 2;
+
+    const dotR = theme === "dark" ? 255 : 0;
+    const dotG = theme === "dark" ? 255 : 0;
+    const dotB = theme === "dark" ? 255 : 0;
 
     let raf: number;
 
     const draw = (ts: number) => {
-      const t = ts / 1000;
+      // count += 0.1 per frame @60fps → 6 per second  (setara original)
+      const count = (ts / 1000) * 6;
       ctx.clearRect(0, 0, W, H);
 
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const x = c * SPACING;
-          const y = r * SPACING;
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x = col * SPACING;
+          const y = row * SPACING;
 
-          // Flag wave (MKBHD style):
-          // - wx: gelombang horizontal mengalir ke kanan
-          // - fold: lipatan vertikal seperti kain bendera yang dikibaskan,
-          //         dimodulasi oleh posisi horizontal → band miring bergelombang
-          const wx   = x * 0.025 - t * 2.0;
-          const fold = Math.sin(y * 0.018 + wx * 0.7) * 1.8;
-          const wave = Math.sin(wx + fold);          // -1..1
+          // Identik dengan formula original tfrere/xPavRR, tapi:
+          //   row (vertikal) → peran ix (0.3 freq, gelombang mengalir ke bawah)
+          //   col (horizontal) → peran iy (0.5 freq, variasi antar kolom)
+          // Tanda minus pada count membuat gelombang bergerak ke BAWAH
+          const wRow = Math.sin((row - count) * 0.3);   // -1..1
+          const wCol = Math.sin((col - count * 0.6) * 0.5);  // -1..1, sedikit lebih lambat
 
-          const alpha = 0.03 + (wave + 1) / 2 * 0.20;  // 0.03..0.23
+          // rawScale 0..16 (persis seperti original)
+          const rawScale = (wRow + 1) * 4 + (wCol + 1) * 4;
+          const norm = rawScale / 16;   // 0..1
+
+          const r     = R_MIN + norm * (R_MAX - R_MIN);
+          const alpha = 0.025 + norm * 0.23;   // 0.025..0.255
 
           ctx.beginPath();
-          ctx.arc(x, y, R, 0, Math.PI * 2);
-          ctx.fillStyle = theme === "dark"
-            ? `rgba(255,255,255,${alpha.toFixed(3)})`
-            : `rgba(0,0,0,${alpha.toFixed(3)})`;
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${dotR},${dotG},${dotB},${alpha.toFixed(3)})`;
           ctx.fill();
         }
       }
@@ -118,9 +129,6 @@ function DotWaveCanvas({ theme }: { theme: string }) {
     return () => cancelAnimationFrame(raf);
   }, [theme]);
 
-  // Portal ke body: bypass #root transform, posisi relatif ke viewport.
-  // zIndex: 0 (bukan -1) agar canvas muncul di ATAS html background (solid),
-  // tapi di BAWAH #root yang diberi z-index: 1 di screenshotter CSS.
   return createPortal(
     <canvas ref={ref} style={{
       position: "fixed", top: 0, left: 0,
