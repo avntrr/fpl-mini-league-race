@@ -647,12 +647,13 @@ export default function App() {
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0, height: SH,
                   display: "flex", flexDirection: "column", justifyContent: "center",
-                  paddingBottom: compact ? 0 : 8,
+                  paddingTop: compact ? 0 : 10,
+                  paddingBottom: compact ? 0 : 10,
                   borderBottom: compact ? "none" : `1px solid ${tk.border}`,
                 }}>
 
                 {/* Top row: rank | circle | name + team + flag */}
-                <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8, marginBottom: compact ? 1 : 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8, marginBottom: compact ? 1 : 4 }}>
 
                   {/* Rank — box on web/small topN, plain coloured number when compact */}
                   {compact ? (
