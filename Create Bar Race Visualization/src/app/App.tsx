@@ -82,13 +82,13 @@ function DotWaveCanvas({ theme }: { theme: string }) {
 
     const SPACING = 24;    // jarak antar titik (px) — cocok untuk 540×960
     const R_MIN   = 0.3;   // radius minimum di lembah gelombang
-    const R_MAX   = 3.8;   // radius maksimum di puncak gelombang
+    const R_MAX   = 2.5;   // radius maksimum di puncak gelombang
     const cols = Math.ceil(W / SPACING) + 2;
     const rows = Math.ceil(H / SPACING) + 2;
 
-    const dotR = theme === "dark" ? 255 : 0;
-    const dotG = theme === "dark" ? 255 : 0;
-    const dotB = theme === "dark" ? 255 : 0;
+    const dotR = 0;
+    const dotG = 0;
+    const dotB = 0;
 
     let raf: number;
 
