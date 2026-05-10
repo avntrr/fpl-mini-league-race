@@ -232,7 +232,14 @@ def render_race(
                 display: flex;
                 align-items: center;
                 justify-content: center;
+              }}
+              html {{
                 background: {_BG.get(theme, '#0a0e1a')};
+              }}
+              body {{
+                /* Transparan agar canvas (z-index:-1, portal ke body) terlihat
+                   di atas html background tapi di bawah #root content */
+                background: transparent;
               }}
               #root {{
                 transform: scale(0.85);
