@@ -653,7 +653,7 @@ export default function App() {
                 }}>
 
                 {/* Top row: rank | circle | name + team + flag */}
-                <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8, marginBottom: compact ? 1 : 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: compact ? 5 : 8, marginBottom: compact ? 1 : 0 }}>
 
                   {/* Rank — box on web/small topN, plain coloured number when compact */}
                   {compact ? (
