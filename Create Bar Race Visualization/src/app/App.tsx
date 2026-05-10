@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { Play, Pause, RotateCcw, Trophy, Download, Loader2, ChevronLeft, Sun, Moon, ChevronUp, ChevronDown } from "lucide-react";
 import { Link } from "react-router";
@@ -56,6 +57,9 @@ const TOP_N_OPTIONS = [5, 8, 10, 15, 20];
 
 /* ── App ─────────────────────────────────────────────────────────────────── */
 /* ── Dot Wave Background (captureMode only) ─────────────────────────────── */
+// Canvas di-portal ke document.body agar TIDAK terpengaruh transform: scale(0.85)
+// pada #root yang diterapkan screenshotter. Dengan zIndex: -1, canvas berada
+// di bawah semua konten tapi di atas body background → full 1080×1920.
 function DotWaveCanvas({ theme }: { theme: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -65,31 +69,39 @@ function DotWaveCanvas({ theme }: { theme: string }) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const W = 540, H = 960;             // capture viewport (logical px)
+    // Full viewport: tidak hardcode, pakai actual window size
     const dpr = window.devicePixelRatio || 1;
-    canvas.width  = W * dpr;
-    canvas.height = H * dpr;
+    const W   = window.innerWidth;    // 540 di captureMode
+    const H   = window.innerHeight;   // 960 di captureMode
+    canvas.width  = W * dpr;          // 1080 physical
+    canvas.height = H * dpr;          // 1920 physical
     ctx.scale(dpr, dpr);
 
-    const SPACING = 22;                  // dot grid spacing (px)
-    const R       = 1.5;                 // dot radius (px)
+    const SPACING = 22;
+    const R       = 1.5;
     const cols = Math.ceil(W / SPACING) + 1;
     const rows = Math.ceil(H / SPACING) + 1;
 
     let raf: number;
 
     const draw = (ts: number) => {
-      const t = ts / 1000;               // seconds
+      const t = ts / 1000;
       ctx.clearRect(0, 0, W, H);
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const x = c * SPACING;
           const y = r * SPACING;
-          // Diagonal wave: bottom-left → top-right (MKBHD style)
-          const phase = (x * 0.035 + y * 0.035) - t * 1.4;
-          const wave  = (Math.sin(phase) + 1) / 2;   // 0..1
-          const alpha = 0.03 + wave * 0.18;           // 0.03..0.21
+
+          // Flag wave (MKBHD style):
+          // - wx: gelombang horizontal mengalir ke kanan
+          // - fold: lipatan vertikal seperti kain bendera yang dikibaskan,
+          //         dimodulasi oleh posisi horizontal → band miring bergelombang
+          const wx   = x * 0.025 - t * 2.0;
+          const fold = Math.sin(y * 0.018 + wx * 0.7) * 1.8;
+          const wave = Math.sin(wx + fold);          // -1..1
+
+          const alpha = 0.03 + (wave + 1) / 2 * 0.20;  // 0.03..0.23
 
           ctx.beginPath();
           ctx.arc(x, y, R, 0, Math.PI * 2);
@@ -106,12 +118,14 @@ function DotWaveCanvas({ theme }: { theme: string }) {
     return () => cancelAnimationFrame(raf);
   }, [theme]);
 
-  return (
+  // Portal ke body: bypass #root transform, posisi relatif ke viewport
+  return createPortal(
     <canvas ref={ref} style={{
       position: "fixed", top: 0, left: 0,
-      width: "100%", height: "100%",
-      pointerEvents: "none", zIndex: 0,
-    }} />
+      width: "100vw", height: "100vh",
+      pointerEvents: "none", zIndex: -1,
+    }} />,
+    document.body
   );
 }
 
@@ -581,8 +595,12 @@ export default function App() {
      Phase: READY
   ════════════════════════════════════════════════════════════════════════ */
   return (
-    <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
-                  fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
+    <div style={{ minHeight: "100vh",
+                  // captureMode: transparan agar dots dari portal canvas terlihat
+                  // di belakang konten. Background solid tetap di body (screenshotter CSS).
+                  background: captureMode ? "transparent" : tk.bg,
+                  color: tk.text, fontFamily: condensed,
+                  transition: captureMode ? "none" : "background 0.3s, color 0.3s" }}>
       {captureMode && <DotWaveCanvas theme={theme} />}
       <style>{`
         html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
@@ -593,8 +611,7 @@ export default function App() {
       `}</style>
 
       <div style={{ maxWidth: 672, margin: "0 auto",
-                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px",
-                    ...(captureMode ? { position: "relative", zIndex: 1 } : {}) }}>
+                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px" }}>
 
         {/* ── Header ── */}
         <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
