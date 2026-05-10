@@ -101,22 +101,27 @@ function DotWaveCanvas({ theme }: { theme: string }) {
 
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
-          const x = col * SPACING;
-          const y = row * SPACING;
+          const baseX = col * SPACING;
+          const baseY = row * SPACING;
 
-          // Identik dengan formula original tfrere/xPavRR, tapi:
-          //   row (vertikal) → peran ix (0.3 freq, gelombang mengalir ke bawah)
-          //   col (horizontal) → peran iy (0.5 freq, variasi antar kolom)
-          // Tanda minus pada count membuat gelombang bergerak ke BAWAH
-          const wRow = Math.sin((row - count) * 0.3);   // -1..1
-          const wCol = Math.sin((col - count * 0.6) * 0.5);  // -1..1, sedikit lebih lambat
+          // Dua gelombang interferensi — persis formula tfrere/xPavRR
+          const wRow = Math.sin((row - count) * 0.3);        // -1..1
+          const wCol = Math.sin((col - count * 0.6) * 0.5);  // -1..1
 
-          // rawScale 0..16 (persis seperti original)
+          // rawScale 0..16 (identik dengan original)
           const rawScale = (wRow + 1) * 4 + (wCol + 1) * 4;
           const norm = rawScale / 16;   // 0..1
 
+          // ── Kunci efek 3D: dot bergeser dari posisi grid ──
+          // Di original, particle.position.y berubah → proyeksi kamera
+          // menggeser posisi dot di layar. Kita simulasikan dengan
+          // menggeser dot secara vertikal sesuai nilai gelombang.
+          const DISPLACEMENT = 7;   // px — seberapa jauh dot bisa bergeser
+          const x = baseX;
+          const y = baseY + wRow * DISPLACEMENT + wCol * DISPLACEMENT * 0.5;
+
           const r     = R_MIN + norm * (R_MAX - R_MIN);
-          const alpha = 0.025 + norm * 0.23;   // 0.025..0.255
+          const alpha = 0.025 + norm * 0.23;
 
           ctx.beginPath();
           ctx.arc(x, y, r, 0, Math.PI * 2);
