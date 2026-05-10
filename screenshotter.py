@@ -190,10 +190,11 @@ def render_race(
     frames_dir.mkdir(parents=True)
 
     total_gws    = len(df)
-    total_frames = total_gws * steps_per_gw + 1  # inclusive last frame
-
-    # Frame tambahan di akhir: tunggu FM settle lalu hold di posisi final
-    HOLD_FRAMES     = 45                          # 1.5 detik hold di akhir video
+    # Pendekatan keyframe: tiap GW mendapat steps_per_gw frame animasi penuh.
+    # GW berubah SEKALI per blok (bukan bertahap), memberi Framer Motion waktu
+    # cukup untuk menyelesaikan animasi perpindahan rank tanpa interupsi.
+    total_frames    = total_gws * steps_per_gw
+    HOLD_FRAMES     = 45   # 1.5 detik hold di posisi final
     total_with_hold = total_frames + HOLD_FRAMES
 
     try:
@@ -237,8 +238,6 @@ def render_race(
                 background: {_BG.get(theme, '#0a0e1a')};
               }}
               body {{
-                /* Transparan agar canvas (z-index:-1, portal ke body) terlihat
-                   di atas html background tapi di bawah #root content */
                 background: transparent;
               }}
               #root {{
@@ -248,39 +247,47 @@ def render_race(
                 height: 100vh;
                 flex-shrink: 0;
                 overflow: hidden;
+                z-index: 1;
               }}
             """)
 
             MS_PER_FRAME = round(1000 / fps)  # 33ms at 30fps, 17ms at 60fps
+            frame_count  = 0
 
-            for fi in range(total_frames):
-                gw_val = _gw_float_for_frame(fi, total_gws, steps_per_gw)
+            def _capture_frames(n: int) -> None:
+                """Fire n rAF cycles dan capture screenshot tiap frame."""
+                nonlocal frame_count
+                for _ in range(n):
+                    page.clock.run_for(MS_PER_FRAME)
+                    page.screenshot(path=str(frames_dir / f"frame_{frame_count:06d}.png"))
+                    frame_count += 1
+                    if progress_cb:
+                        progress_cb(frame_count, total_with_hold)
 
-                # Set frame, tandai belum ready, tunggu React re-render selesai.
-                # React menggunakan MessageChannel (bukan setTimeout/rAF) sehingga
-                # tidak terpengaruh fake clock — wait_for_function tetap berjalan normal.
+            # ── Keyframe render loop ──────────────────────────────────────────
+            # GW berubah SEKALI per blok → rank hanya berubah 1× per GW
+            # → Framer Motion animasikan perpindahan rank tanpa interupsi
+            # → transisi mulus seperti di web.
+            #
+            # GW1: seek ke data awal, tahan steps_per_gw frame (belum ada animasi)
+            page.evaluate("() => { window.__FPL_READY = false; window.__FPL_SEEK(1.0); }")
+            page.wait_for_function("() => window.__FPL_READY === true", timeout=5_000)
+            _capture_frames(steps_per_gw)
+
+            # GW2..totalGws: seek ke GW integer → FM animasi perpindahan rank
+            for gw in range(2, total_gws + 1):
                 page.evaluate(
-                    f"() => {{ window.__FPL_READY = false; window.__FPL_SEEK({gw_val:.6f}); }}"
+                    f"() => {{ window.__FPL_READY = false; window.__FPL_SEEK({float(gw):.1f}); }}"
                 )
                 page.wait_for_function("() => window.__FPL_READY === true", timeout=5_000)
+                _capture_frames(steps_per_gw)
 
-                # Maju tepat satu video frame (33ms) dalam fake time.
-                # Framer Motion rAF maju persis 33ms → animasi sama persis dengan web,
-                # tidak peduli berapa lama screenshot I/O memakan waktu nyata.
-                page.clock.run_for(MS_PER_FRAME)
-
-                page.screenshot(path=str(frames_dir / f"frame_{fi:06d}.png"))
-
-                if progress_cb:
-                    progress_cb(fi + 1, total_with_hold)
-
-            # Hold frames: advance clock agar animasi settle (>550ms duration FM),
-            # lalu capture posisi final selama 1.5 detik.
-            page.clock.run_for(600)  # Pastikan animasi FM selesai (duration 550ms + margin)
+            # Hold frames: beri animasi FM selesai, tahan posisi final 1.5 detik
+            page.clock.run_for(600)
             for i in range(HOLD_FRAMES):
-                page.screenshot(path=str(frames_dir / f"frame_{total_frames + i:06d}.png"))
+                page.screenshot(path=str(frames_dir / f"frame_{frame_count + i:06d}.png"))
                 if progress_cb:
-                    progress_cb(total_frames + i + 1, total_with_hold)
+                    progress_cb(frame_count + i + 1, total_with_hold)
 
             browser.close()
 

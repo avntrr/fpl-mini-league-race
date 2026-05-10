@@ -118,12 +118,14 @@ function DotWaveCanvas({ theme }: { theme: string }) {
     return () => cancelAnimationFrame(raf);
   }, [theme]);
 
-  // Portal ke body: bypass #root transform, posisi relatif ke viewport
+  // Portal ke body: bypass #root transform, posisi relatif ke viewport.
+  // zIndex: 0 (bukan -1) agar canvas muncul di ATAS html background (solid),
+  // tapi di BAWAH #root yang diberi z-index: 1 di screenshotter CSS.
   return createPortal(
     <canvas ref={ref} style={{
       position: "fixed", top: 0, left: 0,
       width: "100vw", height: "100vh",
-      pointerEvents: "none", zIndex: -1,
+      pointerEvents: "none", zIndex: 0,
     }} />,
     document.body
   );
