@@ -93,8 +93,10 @@ function DotWaveCanvas({ theme }: { theme: string }) {
     let raf: number;
 
     const draw = (ts: number) => {
-      // count += 0.1 per frame @60fps → 6 per second  (setara original)
-      const count = (ts / 1000) * 6;
+      // Original 3D scene: count += 0.1/frame @60fps = 6/sec, tapi proyeksi
+      // perspektif membuat gerakan tampak ~4x lebih lambat di layar.
+      // Versi 2D tanpa proyeksi → kalikan ~0.25 untuk setara visual.
+      const count = (ts / 1000) * 1.5;
       ctx.clearRect(0, 0, W, H);
 
       for (let row = 0; row < rows; row++) {
