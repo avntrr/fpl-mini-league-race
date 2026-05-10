@@ -121,9 +121,9 @@ export default function App() {
   const rIndent   = captureMode ? 74 : Math.round(Math.min(74, vw * 0.19));    // paddingLeft bar row
   const rScore    = captureMode ? 72 : Math.round(Math.min(84, vw * 0.215));   // score div width
   // Font sizes dalam px agar tidak terpengaruh iOS system Text Size (rem terpengaruh, px tidak)
-  const fName   = captureMode ? 16 : Math.round(Math.min(14, vw * 0.036));  // manager name
-  const fTeam   = captureMode ? 10 : Math.round(Math.min(11, vw * 0.028));  // team name
-  const fScore  = captureMode ? 15 : Math.round(Math.min(22, Math.max(16, vw * 0.056)));  // total score
+  const fName   = captureMode ? 16 : 12;  // manager name
+  const fTeam   = captureMode ? 10 : 10;  // team name
+  const fScore  = captureMode ? 15 : 20;  // total score
   const _rawCH       = topN * (SH + SG) - SG;
   const captureCardZoom = (captureMode && _rawCH > _AVAIL_CH) ? _AVAIL_CH / _rawCH : 1;
   // compact = video render with 15 or 20 teams → slim bars, no rank box
