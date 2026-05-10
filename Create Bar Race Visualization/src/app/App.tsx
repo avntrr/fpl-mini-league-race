@@ -698,12 +698,12 @@ export default function App() {
                     <span style={{ fontSize: compact ? "12px" : `${fName}px`, fontWeight: 700,
                                    textTransform: "uppercase", letterSpacing: "0.04em",
                                    color: tk.text, lineHeight: 1.2,
-                                   overflow: "hidden", whiteSpace: "nowrap", flexShrink: 1 }}>
+                                   whiteSpace: "nowrap", flexShrink: 0 }}>
                       {m.name}
                     </span>
                     <span style={{ fontSize: compact ? "10px" : `${fTeam}px`, color: tk.dim,
-                                   overflow: "hidden", whiteSpace: "nowrap",
-                                   minWidth: 0, flexShrink: 2 }}>
+                                   overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis",
+                                   minWidth: 0, flexShrink: 1 }}>
                       {resolvedTeamMap[m.team]?.fullName ?? m.team}
                     </span>
                     {resolvedTeamMap[m.team]?.iso && (
