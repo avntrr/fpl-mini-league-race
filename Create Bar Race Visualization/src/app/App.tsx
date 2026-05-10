@@ -101,17 +101,6 @@ export default function App() {
   const [downloading, setDownloading] = useState(false);
   const [dlMsg, setDlMsg]             = useState("");
 
-  // ── Responsive zoom for narrow mobile screens ──
-  const [windowW, setWindowW] = useState(() => window.innerWidth);
-  useEffect(() => {
-    if (captureMode) return;
-    const onResize = () => setWindowW(window.innerWidth);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [captureMode]);
-  // Scale down card when viewport < 440px (natural comfortable width)
-  const webCardZoom = captureMode ? 1 : Math.min(1, (windowW - 32) / 440);
-
   const totalGws = fplData?.totalGws ?? 38;
 
   // Adaptive row height + card zoom for captureMode (fits 5–20 teams in 1080×1920)
@@ -522,8 +511,10 @@ export default function App() {
   ════════════════════════════════════════════════════════════════════════ */
   return (
     <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
-                  fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
+                  fontFamily: condensed, transition: "background 0.3s, color 0.3s",
+                  overflowX: "hidden", maxWidth: "100vw" }}>
       <style>{`
+        body { overflow-x: hidden; max-width: 100vw; }
         ::-webkit-scrollbar { display: none; }
         * { scrollbar-width: none; }
         input[type=range] { height: 4px; cursor: pointer; }
@@ -598,7 +589,7 @@ export default function App() {
           marginBottom: captureMode ? 0 : 32,
           paddingTop: 32,
           filter: theme === "dark" ? "drop-shadow(0 2px 14px rgba(0,0,0,0.55))" : "drop-shadow(0 2px 10px rgba(0,0,0,0.12))",
-          zoom: captureMode ? captureCardZoom : webCardZoom,
+          zoom: captureCardZoom,
         }}>
           {/* Folder tab — sticks up above card on top-right */}
           <div style={{
@@ -618,6 +609,7 @@ export default function App() {
           borderRadius: "10px 0 10px 10px",
           backgroundColor: theme === "dark" ? "rgba(255,255,255,0.04)" : "#ffffff",
           padding: captureMode ? "4px 10px" : "8px 14px",
+          overflow: "hidden",
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: captureMode ? 0 : 0.4 }}
