@@ -711,7 +711,7 @@ export default function App() {
                         {resolvedTeamMap[m.team]?.fullName ?? m.team}
                       </span>
                       {resolvedTeamMap[m.team]?.iso && (
-                        <span style={{ fontSize: "0.85rem", flexShrink: 0, lineHeight: 1 }}>
+                        <span style={{ fontSize: "13px", flexShrink: 0, lineHeight: 1 }}>
                           {isoToFlag(resolvedTeamMap[m.team].iso!)}
                         </span>
                       )}
