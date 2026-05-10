@@ -511,10 +511,8 @@ export default function App() {
   ════════════════════════════════════════════════════════════════════════ */
   return (
     <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
-                  fontFamily: condensed, transition: "background 0.3s, color 0.3s",
-                  overflowX: "hidden", maxWidth: "100vw" }}>
+                  fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
       <style>{`
-        body { overflow-x: hidden; max-width: 100vw; }
         ::-webkit-scrollbar { display: none; }
         * { scrollbar-width: none; }
         input[type=range] { height: 4px; cursor: pointer; }
@@ -677,20 +675,29 @@ export default function App() {
                     }
                   </div>
 
-                  {/* Name + team + flag */}
-                  <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "1rem", fontWeight: 700, textTransform: "uppercase",
-                                   letterSpacing: "0.04em", color: tk.text }}>
+                  {/* Name (row 1) + team + flag (row 2) — column layout so nothing wraps horizontally */}
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
+                                justifyContent: "center", gap: 2 }}>
+                    {/* Row 1: manager name */}
+                    <span style={{ fontSize: compact ? "0.75rem" : "1rem", fontWeight: 700,
+                                   textTransform: "uppercase", letterSpacing: "0.04em",
+                                   color: tk.text, lineHeight: 1.2,
+                                   overflow: "hidden", whiteSpace: "nowrap" }}>
                       {m.name}
                     </span>
-                    <span style={{ fontSize: "0.8rem", color: tk.dim }}>
-                      {resolvedTeamMap[m.team]?.fullName ?? m.team}
-                    </span>
-                    {resolvedTeamMap[m.team]?.iso && (
-                      <span style={{ fontSize: "0.85rem", flexShrink: 0, lineHeight: 1 }}>
-                        {isoToFlag(resolvedTeamMap[m.team].iso!)}
+                    {/* Row 2: team name + flag */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+                      <span style={{ fontSize: compact ? "0.65rem" : "0.8rem", color: tk.dim,
+                                     overflow: "hidden", whiteSpace: "nowrap",
+                                     minWidth: 0, flexShrink: 1 }}>
+                        {resolvedTeamMap[m.team]?.fullName ?? m.team}
                       </span>
-                    )}
+                      {resolvedTeamMap[m.team]?.iso && (
+                        <span style={{ fontSize: "0.85rem", flexShrink: 0, lineHeight: 1 }}>
+                          {isoToFlag(resolvedTeamMap[m.team].iso!)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
