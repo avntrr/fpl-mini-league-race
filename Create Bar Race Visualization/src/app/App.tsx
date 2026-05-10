@@ -680,9 +680,9 @@ export default function App() {
                     transition: "background-color 0.4s",
                   }}>
                     {rankDelta > 0
-                      ? <ChevronUp  size={Math.round(rCircle * 0.55)} color="#fff" strokeWidth={3} />
+                      ? <ChevronUp  size={Math.round(rCircle * 0.55) - (compact ? 2 : 0)} color="#fff" strokeWidth={3} />
                       : rankDelta < 0
-                      ? <ChevronDown size={Math.round(rCircle * 0.55)} color="#fff" strokeWidth={3} />
+                      ? <ChevronDown size={Math.round(rCircle * 0.55) - (compact ? 2 : 0)} color="#fff" strokeWidth={3} />
                       : <span style={{ width: Math.round(rCircle * 0.23), height: Math.round(rCircle * 0.23),
                                        borderRadius: "50%",
                                        backgroundColor: tk.dim, display: "block" }} />
