@@ -316,7 +316,7 @@ export default function App() {
   }, [fplData]);
 
   const mono      = "'JetBrains Mono', monospace";
-  const condensed = "'Barlow Condensed', 'Noto Sans', sans-serif";
+  const condensed = "'Barlow Condensed', 'Noto Sans Thai', 'Noto Sans Arabic', 'Noto Sans JP', 'Noto Sans', sans-serif";
 
   /* ════════════════════════════════════════════════════════════════════════
      Phase: FORM
