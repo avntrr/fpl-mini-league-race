@@ -618,7 +618,6 @@ export default function App() {
           borderRadius: "10px 0 10px 10px",
           backgroundColor: theme === "dark" ? "rgba(255,255,255,0.04)" : "#ffffff",
           padding: captureMode ? "4px 10px" : "8px 14px",
-          overflow: "hidden",
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: captureMode ? 0 : 0.4 }}
@@ -644,6 +643,7 @@ export default function App() {
                   position: "absolute", top: 0, left: 0, right: 0, height: SH,
                   display: "flex", flexDirection: "column", justifyContent: "center",
                   borderBottom: compact ? "none" : `1px solid ${tk.border}`,
+                  overflow: "hidden",
                 }}>
 
                 {/* Top row: rank | circle | name + team + flag */}
@@ -715,7 +715,8 @@ export default function App() {
 
                 {/* Bottom row: bar (indented) + total score */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8,
-                              paddingLeft: compact ? 53 : rIndent }}>
+                              paddingLeft: compact ? 53 : rIndent,
+                              paddingRight: 4 }}>
 
                   {/* Bar track */}
                   <div style={{ flex: 1, position: "relative",
