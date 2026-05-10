@@ -55,6 +55,66 @@ const RANK_GLYPHS = ["①", "②", "③"];
 const TOP_N_OPTIONS = [5, 8, 10, 15, 20];
 
 /* ── App ─────────────────────────────────────────────────────────────────── */
+/* ── Dot Wave Background (captureMode only) ─────────────────────────────── */
+function DotWaveCanvas({ theme }: { theme: string }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const W = 540, H = 960;             // capture viewport (logical px)
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const SPACING = 22;                  // dot grid spacing (px)
+    const R       = 1.5;                 // dot radius (px)
+    const cols = Math.ceil(W / SPACING) + 1;
+    const rows = Math.ceil(H / SPACING) + 1;
+
+    let raf: number;
+
+    const draw = (ts: number) => {
+      const t = ts / 1000;               // seconds
+      ctx.clearRect(0, 0, W, H);
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = c * SPACING;
+          const y = r * SPACING;
+          // Diagonal wave: bottom-left → top-right (MKBHD style)
+          const phase = (x * 0.035 + y * 0.035) - t * 1.4;
+          const wave  = (Math.sin(phase) + 1) / 2;   // 0..1
+          const alpha = 0.03 + wave * 0.18;           // 0.03..0.21
+
+          ctx.beginPath();
+          ctx.arc(x, y, R, 0, Math.PI * 2);
+          ctx.fillStyle = theme === "dark"
+            ? `rgba(255,255,255,${alpha.toFixed(3)})`
+            : `rgba(0,0,0,${alpha.toFixed(3)})`;
+          ctx.fill();
+        }
+      }
+      raf = requestAnimationFrame(draw);
+    };
+
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [theme]);
+
+  return (
+    <canvas ref={ref} style={{
+      position: "fixed", top: 0, left: 0,
+      width: "100%", height: "100%",
+      pointerEvents: "none", zIndex: 0,
+    }} />
+  );
+}
+
 export default function App() {
   // ── Capture mode (Playwright screenshot renderer) ──
   const captureMode = typeof window !== "undefined" &&
@@ -523,6 +583,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
                   fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
+      {captureMode && <DotWaveCanvas theme={theme} />}
       <style>{`
         html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
         ::-webkit-scrollbar { display: none; }
@@ -532,7 +593,8 @@ export default function App() {
       `}</style>
 
       <div style={{ maxWidth: 672, margin: "0 auto",
-                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px" }}>
+                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px",
+                    ...(captureMode ? { position: "relative", zIndex: 1 } : {}) }}>
 
         {/* ── Header ── */}
         <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
