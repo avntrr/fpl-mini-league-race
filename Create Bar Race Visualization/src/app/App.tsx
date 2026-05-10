@@ -64,7 +64,7 @@ export default function App() {
   const captureMode = typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).has("capture");
 
-  const SG      = captureMode ? 4 : 6;
+  const SG      = captureMode ? 4 : 8;  // 8px gap web → garis pemisah lebih jelas
 
   // ── Theme — in capture mode read from URL (?theme=light), else localStorage ──
   const [theme, setTheme] = useState<Theme>(() => {
@@ -511,7 +511,8 @@ export default function App() {
   ════════════════════════════════════════════════════════════════════════ */
   return (
     <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
-                  fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
+                  fontFamily: condensed, transition: "background 0.3s, color 0.3s",
+                  display: "flex", justifyContent: "center", alignItems: "flex-start" }}>
       <style>{`
         ::-webkit-scrollbar { display: none; }
         * { scrollbar-width: none; }
@@ -519,7 +520,10 @@ export default function App() {
         input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; }
       `}</style>
 
-      <div style={{ maxWidth: 672, margin: "0 auto", padding: captureMode ? "8px 16px 8px" : "24px 16px 32px" }}>
+      {/* zoom: 0.85 scales the entire UI to 85% for web — flex parent centers the zoomed block */}
+      <div style={{ width: "100%", maxWidth: 672,
+                    padding: captureMode ? "8px 16px 8px" : "24px 16px 32px",
+                    zoom: captureMode ? 1 : 0.85 }}>
 
         {/* ── Header ── */}
         <motion.header initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
