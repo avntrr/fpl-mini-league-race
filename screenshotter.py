@@ -203,7 +203,7 @@ def render_race(
 
             # Install fake clock SETELAH halaman load.
             # Dengan fake clock: requestAnimationFrame (dipakai Framer Motion) HANYA
-            # maju saat kita panggil page.clock.tick(). Real-time I/O screenshot tidak
+            # maju saat kita panggil page.clock.run_for(). Real-time I/O screenshot tidak
             # mempengaruhi kecepatan animasi. React tetap jalan normal via MessageChannel.
             page.clock.install(time=0)
 
@@ -247,7 +247,7 @@ def render_race(
                 # Maju tepat satu video frame (33ms) dalam fake time.
                 # Framer Motion rAF maju persis 33ms → animasi sama persis dengan web,
                 # tidak peduli berapa lama screenshot I/O memakan waktu nyata.
-                page.clock.tick(MS_PER_FRAME)
+                page.clock.run_for(MS_PER_FRAME)
 
                 page.screenshot(path=str(frames_dir / f"frame_{fi:06d}.png"))
 
@@ -256,7 +256,7 @@ def render_race(
 
             # Hold frames: advance clock agar animasi settle (>550ms duration FM),
             # lalu capture posisi final selama 1.5 detik.
-            page.clock.tick(600)  # Pastikan animasi FM selesai (duration 550ms + margin)
+            page.clock.run_for(600)  # Pastikan animasi FM selesai (duration 550ms + margin)
             for i in range(HOLD_FRAMES):
                 page.screenshot(path=str(frames_dir / f"frame_{total_frames + i:06d}.png"))
                 if progress_cb:
