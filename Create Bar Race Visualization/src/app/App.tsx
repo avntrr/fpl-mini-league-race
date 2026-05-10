@@ -120,6 +120,10 @@ export default function App() {
   const rCircle   = captureMode ? 22 : Math.round(Math.min(22, vw * 0.056));   // movement circle
   const rIndent   = captureMode ? 74 : Math.round(Math.min(74, vw * 0.19));    // paddingLeft bar row
   const rScore    = captureMode ? 72 : Math.round(Math.min(84, vw * 0.215));   // score div width
+  // Font sizes dalam px agar tidak terpengaruh iOS system Text Size (rem terpengaruh, px tidak)
+  const fName   = captureMode ? 16 : Math.round(Math.min(16, vw * 0.041));  // manager name
+  const fTeam   = captureMode ? 10 : Math.round(Math.min(13, vw * 0.033));  // team name
+  const fScore  = captureMode ? 15 : Math.round(Math.min(24, Math.max(18, vw * 0.062)));  // total score
   const _rawCH       = topN * (SH + SG) - SG;
   const captureCardZoom = (captureMode && _rawCH > _AVAIL_CH) ? _AVAIL_CH / _rawCH : 1;
   // compact = video render with 15 or 20 teams → slim bars, no rank box
@@ -523,6 +527,7 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: tk.bg, color: tk.text,
                   fontFamily: condensed, transition: "background 0.3s, color 0.3s" }}>
       <style>{`
+        html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
         ::-webkit-scrollbar { display: none; }
         * { scrollbar-width: none; }
         input[type=range] { height: 4px; cursor: pointer; }
@@ -662,7 +667,7 @@ export default function App() {
                       display: "flex", alignItems: "center", justifyContent: "center",
                       transition: "background-color 0.5s",
                     }}>
-                      <span style={{ fontSize: `${rBadge * 0.028}rem`, fontWeight: 900, color: "#fff", fontFamily: mono }}>
+                      <span style={{ fontSize: `${Math.round(rBadge * 0.45)}px`, fontWeight: 900, color: "#fff", fontFamily: mono }}>
                         {rank + 1}
                       </span>
                     </div>
@@ -691,7 +696,7 @@ export default function App() {
                   <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column",
                                 justifyContent: "center", gap: 2 }}>
                     {/* Row 1: manager name */}
-                    <span style={{ fontSize: compact ? "0.75rem" : "1rem", fontWeight: 700,
+                    <span style={{ fontSize: compact ? "12px" : `${fName}px`, fontWeight: 700,
                                    textTransform: "uppercase", letterSpacing: "0.04em",
                                    color: tk.text, lineHeight: 1.2,
                                    overflow: "hidden", whiteSpace: "nowrap" }}>
@@ -699,7 +704,7 @@ export default function App() {
                     </span>
                     {/* Row 2: team name + flag */}
                     <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
-                      <span style={{ fontSize: compact ? "0.65rem" : "0.8rem", color: tk.dim,
+                      <span style={{ fontSize: compact ? "10px" : `${fTeam}px`, color: tk.dim,
                                      overflow: "hidden", whiteSpace: "nowrap",
                                      minWidth: 0, flexShrink: 1 }}>
                         {resolvedTeamMap[m.team]?.fullName ?? m.team}
@@ -742,7 +747,7 @@ export default function App() {
                         <span style={{
                           position:      "absolute", right: 7,
                           top:           "50%", transform: "translateY(-50%)",
-                          fontSize:      "0.65rem", fontWeight: 900,
+                          fontSize:      "10px", fontWeight: 900,
                           color:         "rgba(255,255,255,0.9)",
                           fontFamily:    mono, pointerEvents: "none",
                           whiteSpace:    "nowrap", zIndex: 2,
@@ -754,7 +759,7 @@ export default function App() {
                   {/* Total score — right of bar */}
                   <div style={{ textAlign: "right", width: compact ? 52 : rScore, flexShrink: 0,
                                 fontFamily: mono,
-                                fontSize: compact ? "0.95rem" : `clamp(1.1rem, ${vw * 0.004}rem, 1.5rem)`,
+                                fontSize: compact ? "15px" : `${fScore}px`,
                                 fontWeight: 900, lineHeight: 1,
                                 color: isTop ? tk.accent : tk.text }}>
                     {displayTotal.toLocaleString()}
