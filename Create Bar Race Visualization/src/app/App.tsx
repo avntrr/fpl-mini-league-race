@@ -119,7 +119,7 @@ export default function App() {
   const rBadge    = captureMode ? 36 : Math.round(Math.min(36, vw * 0.092));   // rank badge
   const rCircle   = captureMode ? 22 : Math.round(Math.min(22, vw * 0.056));   // movement circle
   const rIndent   = captureMode ? 74 : Math.round(Math.min(74, vw * 0.19));    // paddingLeft bar row
-  const rScore    = captureMode ? 72 : Math.round(Math.min(72, vw * 0.185));   // score div width
+  const rScore    = captureMode ? 72 : Math.round(Math.min(84, vw * 0.215));   // score div width
   const _rawCH       = topN * (SH + SG) - SG;
   const captureCardZoom = (captureMode && _rawCH > _AVAIL_CH) ? _AVAIL_CH / _rawCH : 1;
   // compact = video render with 15 or 20 teams → slim bars, no rank box
@@ -618,7 +618,6 @@ export default function App() {
           borderRadius: "10px 0 10px 10px",
           backgroundColor: theme === "dark" ? "rgba(255,255,255,0.04)" : "#ffffff",
           padding: captureMode ? "4px 10px" : "8px 14px",
-          overflow: "hidden",
         }}>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ duration: captureMode ? 0 : 0.4 }}
@@ -643,6 +642,7 @@ export default function App() {
                 style={{
                   position: "absolute", top: 0, left: 0, right: 0, height: SH,
                   display: "flex", flexDirection: "column", justifyContent: "center",
+                  paddingBottom: compact ? 0 : 8,
                   borderBottom: compact ? "none" : `1px solid ${tk.border}`,
                 }}>
 
