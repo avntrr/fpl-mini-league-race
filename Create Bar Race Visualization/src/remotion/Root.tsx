@@ -3,7 +3,7 @@
  * Duration is calculated dynamically from inputProps (totalGws × stepsPerGw + hold).
  */
 import React from "react";
-import { Composition } from "remotion";
+import { Composition, registerRoot } from "remotion";
 import { Race, RaceProps } from "./Race";
 
 const STEPS_TABLE: Record<number, number[]> = {
@@ -25,7 +25,7 @@ const DEFAULT_PROPS: RaceProps = {
   fps: 30,
 };
 
-export const RemotionRoot: React.FC = () => {
+const RemotionRoot: React.FC = () => {
   return (
     <Composition
       id="Race"
@@ -49,3 +49,5 @@ export const RemotionRoot: React.FC = () => {
     />
   );
 };
+
+registerRoot(RemotionRoot);
