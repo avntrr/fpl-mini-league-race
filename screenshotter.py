@@ -76,17 +76,48 @@ def _write_fpl_data(
 
 def _find_node() -> str:
     """Cari path binary node — Railway/Linux mungkin tidak include PATH lengkap."""
-    # Coba shutil.which dulu (pakai PATH dari environment)
-    node = shutil.which("node")
-    if node:
-        return node
-    # Fallback ke lokasi umum di Linux/Railway
-    for candidate in ["/usr/local/bin/node", "/usr/bin/node", "/opt/render/project/.nvm/versions/node/*/bin/node"]:
-        import glob
-        matches = glob.glob(candidate)
+    import glob
+
+    # 1. shutil.which dengan nama "node" dan "nodejs" (Debian/Ubuntu pakai "nodejs")
+    for name in ("node", "nodejs"):
+        path = shutil.which(name)
+        if path:
+            return path
+
+    # 2. Tanya shell langsung — shell punya login PATH yang lebih lengkap
+    try:
+        result = subprocess.run(
+            ["/bin/sh", "-c", "which node 2>/dev/null || which nodejs 2>/dev/null || command -v node 2>/dev/null"],
+            capture_output=True, text=True, timeout=5,
+        )
+        path = result.stdout.strip().splitlines()[0] if result.stdout.strip() else ""
+        if path and Path(path).exists():
+            return path
+    except Exception:
+        pass
+
+    # 3. Scan lokasi umum + NVM paths
+    home = Path.home()
+    patterns = [
+        "/usr/local/bin/node",
+        "/usr/bin/node",
+        "/usr/bin/nodejs",
+        "/usr/local/bin/nodejs",
+        str(home / ".nvm/versions/node/*/bin/node"),
+        "/root/.nvm/versions/node/*/bin/node",
+        "/opt/render/project/.nvm/versions/node/*/bin/node",
+        "/usr/local/nvm/versions/node/*/bin/node",
+    ]
+    for pattern in patterns:
+        matches = sorted(glob.glob(pattern))
         if matches:
             return matches[-1]
-    raise RuntimeError("node binary not found. Pastikan Node.js terinstall di server.")
+
+    raise RuntimeError(
+        "node binary not found. "
+        f"PATH={os.environ.get('PATH', '(empty)')}. "
+        "Pastikan Node.js terinstall di server."
+    )
 
 
 def _get_chromium_path() -> str | None:
