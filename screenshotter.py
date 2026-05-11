@@ -13,6 +13,8 @@ Keuntungan vs Playwright:
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -72,14 +74,19 @@ def _write_fpl_data(
     dest.write_text(json.dumps(payload))
 
 
-def _ensure_npm_deps() -> None:
-    """Install npm deps kalau node_modules belum ada."""
-    if not (REACT_DIR / "node_modules" / "remotion").exists():
-        subprocess.run(["npm", "install", "--legacy-peer-deps"], cwd=REACT_DIR, check=True)
-        subprocess.run(
-            ["npm", "install", "--save", "react@18.3.1", "react-dom@18.3.1"],
-            cwd=REACT_DIR, check=True,
-        )
+def _find_node() -> str:
+    """Cari path binary node — Railway/Linux mungkin tidak include PATH lengkap."""
+    # Coba shutil.which dulu (pakai PATH dari environment)
+    node = shutil.which("node")
+    if node:
+        return node
+    # Fallback ke lokasi umum di Linux/Railway
+    for candidate in ["/usr/local/bin/node", "/usr/bin/node", "/opt/render/project/.nvm/versions/node/*/bin/node"]:
+        import glob
+        matches = glob.glob(candidate)
+        if matches:
+            return matches[-1]
+    raise RuntimeError("node binary not found. Pastikan Node.js terinstall di server.")
 
 
 def _get_chromium_path() -> str | None:
@@ -121,8 +128,8 @@ def render_race(
     fps = fps if fps in (30, 60) else 30
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. Pastikan npm deps terinstall (termasuk remotion)
-    _ensure_npm_deps()
+    # 1. Cari node binary
+    node_bin = _find_node()
 
     # 2. Tulis fpl-data.json — dibaca oleh render.mjs sebagai inputProps
     REACT_DIST.mkdir(parents=True, exist_ok=True)
@@ -144,7 +151,7 @@ def render_race(
     # 5. Panggil render.mjs via Node.js
     render_script = REACT_DIR / "render.mjs"
     cmd = [
-        "node", str(render_script),
+        node_bin, str(render_script),
         "--data",   str(REACT_DIST / "fpl-data.json"),
         "--output", str(output_path),
         "--fps",    str(fps),
@@ -155,12 +162,19 @@ def render_race(
     if chromium_path:
         cmd += ["--chromium", chromium_path]
 
+    # Wariskan env lengkap + pastikan PATH mengandung direktori node
+    env = os.environ.copy()
+    node_dir = str(Path(node_bin).parent)
+    if node_dir not in env.get("PATH", ""):
+        env["PATH"] = node_dir + os.pathsep + env.get("PATH", "")
+
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         cwd=REACT_DIR,
+        env=env,
     )
 
     # Baca stdout baris per baris untuk progress reporting
