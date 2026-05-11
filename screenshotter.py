@@ -1,17 +1,19 @@
-"""Render bar chart race ke MP4 menggunakan Playwright + React.
+"""Render bar chart race ke MP4 menggunakan Remotion.
 
-Pixel-perfect karena renderer = React app itu sendiri.
-Playwright kendalikan headless Chromium, capture screenshot per frame,
-ffmpeg rakit PNG → MP4 9:16 @ 30fps.
+Pipeline baru (menggantikan Playwright + screenshot per frame):
+  1. Tulis fpl-data.json ke dist/
+  2. Panggil `node render.mjs` → Remotion bundle + render + encode MP4
+  3. render.mjs mengelola bundling, Chrome headless, ffmpeg secara internal
+
+Keuntungan vs Playwright:
+  - Animasi deterministik: frame N selalu identik (tidak bergantung timing)
+  - Rank transition smooth: dihitung eksplisit via Easing, bukan menunggu FM
+  - Tidak perlu fake clock, HTTP server, atau screenshot loop manual
 """
 from __future__ import annotations
 
 import json
-import shutil
-import socket
 import subprocess
-import threading
-from http.server import SimpleHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import pandas as pd
@@ -19,13 +21,6 @@ import pandas as pd
 BASE_DIR   = Path(__file__).parent
 REACT_DIR  = BASE_DIR / "Create Bar Race Visualization"
 REACT_DIST = REACT_DIR / "dist"
-
-# Frames per GW untuk setiap speed index (0=1x, 1=2x, 2=4x)
-# Harus sama persis dengan SPEEDS[i].stepsPerGw di App.tsx!
-STEPS_BY_SPEED = {
-    30: [26, 13, 5],   # 30fps: 26/30fps = 0.87s per GW
-    60: [52, 26, 10],  # 60fps: 52/60fps = 0.87s per GW (durasi sama, 2x smoother)
-}
 
 PALETTE = [
     "#00d4aa", "#ff6b6b", "#ffd93d", "#a855f7", "#f97316",
@@ -39,23 +34,6 @@ PALETTE = [
 
 def _truncate(name: str, n: int = 13) -> str:
     return name if len(name) <= n else name[:n] + "..."
-
-
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
-
-
-def _start_server(directory: Path, port: int) -> HTTPServer:
-    class _Handler(SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=str(directory), **kwargs)
-        def log_message(self, *_):
-            pass
-    server = HTTPServer(("127.0.0.1", port), _Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    return server
 
 
 def _write_fpl_data(
@@ -94,50 +72,24 @@ def _write_fpl_data(
     dest.write_text(json.dumps(payload))
 
 
-def _build_react_if_needed() -> None:
-    """Build React satu kali; rebuild otomatis kalau App.tsx lebih baru dari dist."""
-    need_build = not REACT_DIST.exists()
-    if not need_build:
-        app_tsx    = REACT_DIR / "src" / "app" / "App.tsx"
-        index_html = REACT_DIST / "index.html"
-        if app_tsx.exists() and index_html.exists():
-            need_build = app_tsx.stat().st_mtime > index_html.stat().st_mtime
-
-    if not need_build:
-        return
-
-    subprocess.run(["npm", "install", "--legacy-peer-deps"], cwd=REACT_DIR, check=True)
-    subprocess.run(
-        ["npm", "install", "--save", "react@18.3.1", "react-dom@18.3.1"],
-        cwd=REACT_DIR, check=True,
-    )
-    subprocess.run(["npm", "run", "build"], cwd=REACT_DIR, check=True)
+def _ensure_npm_deps() -> None:
+    """Install npm deps kalau node_modules belum ada."""
+    if not (REACT_DIR / "node_modules" / "remotion").exists():
+        subprocess.run(["npm", "install", "--legacy-peer-deps"], cwd=REACT_DIR, check=True)
+        subprocess.run(
+            ["npm", "install", "--save", "react@18.3.1", "react-dom@18.3.1"],
+            cwd=REACT_DIR, check=True,
+        )
 
 
-def _gw_float_for_frame(fi: int, total_gws: int, steps: int) -> float:
-    """Konversi frame index ke gw float.
-
-    Layout sama dengan renderer.py matplotlib:
-      - fi = 0 .. steps-1            → hold GW1 (gw=1.0)
-      - fi = steps .. 2*steps-1      → transisi GW1→GW2
-      - fi = k*steps .. (k+1)*steps-1 → transisi GWk→GW(k+1)
-      - fi = total_gws*steps          → frame terakhir (gw=totalGws)
-    Total frames = total_gws * steps + 1
-    """
-    total_frames = total_gws * steps  # last frame is fi == total_frames
-
-    if fi <= 0:
-        return 1.0
-    if fi >= total_frames:
-        return float(total_gws)
-
-    if fi < steps:
-        return 1.0  # hold GW1
-
-    adjusted = fi - steps          # frame index setelah hold
-    seg      = adjusted // steps   # transisi ke-N (0 = GW1→GW2)
-    frac     = (adjusted % steps) / steps
-    return 1.0 + seg + frac
+def _get_chromium_path() -> str | None:
+    """Dapatkan path Playwright Chromium agar Remotion tidak perlu download sendiri."""
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            return p.chromium.executable_path
+    except Exception:
+        return None
 
 
 # ── Main renderer ─────────────────────────────────────────────────────────────
@@ -154,7 +106,7 @@ def render_race(
     theme: str = "dark",
     fps: int = 30,
 ) -> None:
-    """Render animasi bar chart race ke MP4 menggunakan Playwright + React.
+    """Render animasi bar chart race ke MP4 menggunakan Remotion.
 
     Args:
         df:           DataFrame wide (index=GW, cols=team_name, values=cumul pts)
@@ -166,135 +118,64 @@ def render_race(
         speed:        0=1x, 1=2x, 2=4x
         fps:          30 (standard) atau 60 (smoother, ~2x render time)
     """
-    from playwright.sync_api import sync_playwright
-
-    fps = fps if fps in STEPS_BY_SPEED else 30
-    steps_table  = STEPS_BY_SPEED[fps]
-    steps_per_gw = steps_table[max(0, min(speed, len(steps_table) - 1))]
+    fps = fps if fps in (30, 60) else 30
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1. Build/rebuild React kalau perlu
-    _build_react_if_needed()
+    # 1. Pastikan npm deps terinstall (termasuk remotion)
+    _ensure_npm_deps()
 
-    # 2. Tulis fpl-data.json ke dist/
-    _write_fpl_data(df, league_name, managers_map or {}, top_n, REACT_DIST / "fpl-data.json", regions_map or {})
-
-    # 3. Start static HTTP server
-    port   = _free_port()
-    server = _start_server(REACT_DIST, port)
-
-    # 4. Siapkan frame dir
-    frames_dir = output_path.parent / f"_frames_{output_path.stem}"
-    if frames_dir.exists():
-        shutil.rmtree(frames_dir)
-    frames_dir.mkdir(parents=True)
-
-    total_gws    = len(df)
-    total_frames    = total_gws * steps_per_gw + 1  # inclusive last frame
-    HOLD_FRAMES     = 45   # 1.5 detik hold di posisi final
-    total_with_hold = total_frames + HOLD_FRAMES
-
-    try:
-        with sync_playwright() as pw:
-            browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
-            # 540×960 logical px × device_scale_factor 2 = 1080×1920 screenshot (Full HD 9:16)
-            page    = browser.new_page(viewport={"width": 540, "height": 960}, device_scale_factor=2)
-
-            # Install fake clock SEBELUM goto() agar Framer Motion tidak pernah
-            # melihat real performance.now(). Jika clock di-install setelah page load,
-            # performance.now() melompat mundur ke 0 (time reversal) yang menyebabkan
-            # Framer Motion kehilangan referensi startTime → animasi tidak smooth di video.
-            page.clock.install(time=0)
-
-            page.goto(f"http://127.0.0.1:{port}?capture=1&theme={theme}")
-
-            # Step-through init: maju 30ms × 100 = 3000ms fake time.
-            # Memberi React/Framer Motion cukup waktu untuk mount & inisialisasi
-            # dengan fake clock. useEffect (MessageChannel) tetap berjalan normal
-            # di real time — tidak terpengaruh fake clock.
-            for _ in range(100):
-                page.clock.run_for(30)
-
-            # Tunggu React mount + data loaded + first render selesai
-            page.wait_for_function("() => window.__FPL_READY === true", timeout=20_000)
-
-            # Scale content to 85% — identical visual to the website, centered in 1080×1920.
-            # Gives ~144px top/bottom margin (content = 85% × 1920 = 1632px, centered).
-            _BG = {"dark": "#0a0e1a", "light": "#f8fafc"}
-            page.add_style_tag(content=f"""
-              html, body {{
-                zoom: 1 !important;
-                width: 100vw; height: 100vh;
-                margin: 0; padding: 0;
-                overflow: hidden;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-              }}
-              html {{
-                background: {_BG.get(theme, '#0a0e1a')};
-              }}
-              body {{
-                background: transparent;
-              }}
-              #root {{
-                transform: scale(0.85);
-                transform-origin: center center;
-                width: 100vw;
-                height: 100vh;
-                flex-shrink: 0;
-                overflow: hidden;
-                z-index: 1;
-              }}
-            """)
-
-            MS_PER_FRAME = round(1000 / fps)  # 33ms at 30fps, 17ms at 60fps
-
-            for fi in range(total_frames):
-                gw_val = _gw_float_for_frame(fi, total_gws, steps_per_gw)
-                page.evaluate(
-                    f"() => {{ window.__FPL_READY = false; window.__FPL_SEEK({gw_val:.6f}); }}"
-                )
-                page.wait_for_function("() => window.__FPL_READY === true", timeout=5_000)
-                page.clock.run_for(MS_PER_FRAME)
-                page.screenshot(path=str(frames_dir / f"frame_{fi:06d}.png"))
-                if progress_cb:
-                    progress_cb(fi + 1, total_with_hold)
-
-            # Hold frames: advance clock agar animasi FM selesai (550ms), lalu
-            # tahan posisi final selama 1.5 detik.
-            page.clock.run_for(600)
-            for i in range(HOLD_FRAMES):
-                page.screenshot(path=str(frames_dir / f"frame_{total_frames + i:06d}.png"))
-                if progress_cb:
-                    progress_cb(total_frames + i + 1, total_with_hold)
-
-            browser.close()
-
-    finally:
-        server.shutdown()
-
-    # 5. ffmpeg: PNG sequence → MP4 (1080×1920)
-    # Memory-efficient flags for constrained environments (Railway 512MB):
-    # - ultrafast preset  : minimal lookahead buffer (~0 frames vs ~250 for "fast")
-    # - ref=1 bframes=0   : only 1 reference frame kept in RAM (vs 4-16)
-    # - threads=2         : limit worker threads to cap peak memory
-    # - crf=23            : quality-based encoding (no bitrate buffer overhead)
-    subprocess.run(
-        [
-            "ffmpeg", "-y",
-            "-framerate", str(fps),
-            "-i", str(frames_dir / "frame_%06d.png"),
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-preset", "ultrafast",
-            "-crf", "23",
-            "-x264opts", "ref=1:bframes=0:no-cabac=1",
-            "-threads", "2",
-            str(output_path),
-        ],
-        check=True,
+    # 2. Tulis fpl-data.json — dibaca oleh render.mjs sebagai inputProps
+    REACT_DIST.mkdir(parents=True, exist_ok=True)
+    _write_fpl_data(
+        df, league_name, managers_map or {}, top_n,
+        REACT_DIST / "fpl-data.json",
+        regions_map or {},
     )
 
-    # 6. Cleanup
-    shutil.rmtree(frames_dir)
+    # 3. Hitung total frames untuk progress reporting
+    steps_table  = {30: [26, 13, 5], 60: [52, 26, 10]}
+    steps_per_gw = steps_table[fps][max(0, min(speed, 2))]
+    total_gws    = len(df)
+    total_frames = total_gws * steps_per_gw + 45  # +45 hold frames
+
+    # 4. Dapatkan Playwright Chromium (supaya Remotion tidak perlu download sendiri)
+    chromium_path = _get_chromium_path()
+
+    # 5. Panggil render.mjs via Node.js
+    render_script = REACT_DIR / "render.mjs"
+    cmd = [
+        "node", str(render_script),
+        "--data",   str(REACT_DIST / "fpl-data.json"),
+        "--output", str(output_path),
+        "--fps",    str(fps),
+        "--theme",  theme,
+        "--speed",  str(speed),
+        "--top-n",  str(top_n),
+    ]
+    if chromium_path:
+        cmd += ["--chromium", chromium_path]
+
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=REACT_DIR,
+    )
+
+    # Baca stdout baris per baris untuk progress reporting
+    for line in process.stdout:                      # type: ignore[union-attr]
+        line = line.strip()
+        if line.startswith("PROGRESS:") and progress_cb:
+            parts = line.split(":")
+            try:
+                rendered = int(parts[2]) if len(parts) > 2 else 0
+                progress_cb(rendered, total_frames)
+            except (ValueError, IndexError):
+                pass
+
+    process.wait()
+
+    if process.returncode != 0:
+        stderr = process.stderr.read() if process.stderr else ""  # type: ignore[union-attr]
+        raise RuntimeError(f"Remotion render failed (exit {process.returncode}):\n{stderr}")
