@@ -3,11 +3,6 @@
 Pixel-perfect karena renderer = React app itu sendiri.
 Playwright kendalikan headless Chromium, capture screenshot per frame,
 ffmpeg rakit PNG → MP4 9:16 @ 30fps.
-
-Rank transition fix (App.tsx):
-  sorted menggunakan target GW (floor+1) bukan nilai interpolasi,
-  sehingga rank hanya berubah SEKALI per GW → Framer Motion punya
-  waktu penuh untuk animasi slide tanpa diinterupsi.
 """
 from __future__ import annotations
 
@@ -26,9 +21,10 @@ REACT_DIR  = BASE_DIR / "Create Bar Race Visualization"
 REACT_DIST = REACT_DIR / "dist"
 
 # Frames per GW untuk setiap speed index (0=1x, 1=2x, 2=4x)
+# Harus sama persis dengan SPEEDS[i].stepsPerGw di App.tsx!
 STEPS_BY_SPEED = {
-    30: [26, 13, 5],
-    60: [52, 26, 10],
+    30: [26, 13, 5],   # 30fps: 26/30fps = 0.87s per GW
+    60: [52, 26, 10],  # 60fps: 52/60fps = 0.87s per GW (durasi sama, 2x smoother)
 }
 
 PALETTE = [
@@ -111,29 +107,35 @@ def _build_react_if_needed() -> None:
         return
 
     subprocess.run(["npm", "install", "--legacy-peer-deps"], cwd=REACT_DIR, check=True)
+    subprocess.run(
+        ["npm", "install", "--save", "react@18.3.1", "react-dom@18.3.1"],
+        cwd=REACT_DIR, check=True,
+    )
     subprocess.run(["npm", "run", "build"], cwd=REACT_DIR, check=True)
 
 
 def _gw_float_for_frame(fi: int, total_gws: int, steps: int) -> float:
     """Konversi frame index ke gw float.
 
-      fi = 0 .. steps-1          → hold GW1 (gw=1.0)
-      fi = steps .. 2*steps-1    → transisi GW1→GW2  (gw 1.0→2.0)
-      fi = k*steps..(k+1)*steps-1 → transisi GWk→GW(k+1)
-      fi = total_gws*steps        → frame terakhir (gw=totalGws)
+    Layout sama dengan renderer.py matplotlib:
+      - fi = 0 .. steps-1            → hold GW1 (gw=1.0)
+      - fi = steps .. 2*steps-1      → transisi GW1→GW2
+      - fi = k*steps .. (k+1)*steps-1 → transisi GWk→GW(k+1)
+      - fi = total_gws*steps          → frame terakhir (gw=totalGws)
     Total frames = total_gws * steps + 1
     """
-    total_frames = total_gws * steps
+    total_frames = total_gws * steps  # last frame is fi == total_frames
 
     if fi <= 0:
         return 1.0
     if fi >= total_frames:
         return float(total_gws)
+
     if fi < steps:
         return 1.0  # hold GW1
 
-    adjusted = fi - steps
-    seg      = adjusted // steps
+    adjusted = fi - steps          # frame index setelah hold
+    seg      = adjusted // steps   # transisi ke-N (0 = GW1→GW2)
     frac     = (adjusted % steps) / steps
     return 1.0 + seg + frac
 
@@ -152,44 +154,72 @@ def render_race(
     theme: str = "dark",
     fps: int = 30,
 ) -> None:
+    """Render animasi bar chart race ke MP4 menggunakan Playwright + React.
+
+    Args:
+        df:           DataFrame wide (index=GW, cols=team_name, values=cumul pts)
+        output_path:  Path file .mp4 output
+        top_n:        Jumlah tim yang ditampilkan
+        league_name:  Nama liga
+        managers_map: {team_name: manager_name}
+        progress_cb:  Callback(frame, total) untuk progress reporting
+        speed:        0=1x, 1=2x, 2=4x
+        fps:          30 (standard) atau 60 (smoother, ~2x render time)
+    """
     from playwright.sync_api import sync_playwright
 
-    fps          = fps if fps in STEPS_BY_SPEED else 30
-    steps_per_gw = STEPS_BY_SPEED[fps][max(0, min(speed, 2))]
+    fps = fps if fps in STEPS_BY_SPEED else 30
+    steps_table  = STEPS_BY_SPEED[fps]
+    steps_per_gw = steps_table[max(0, min(speed, len(steps_table) - 1))]
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # 1. Build/rebuild React kalau perlu
     _build_react_if_needed()
+
+    # 2. Tulis fpl-data.json ke dist/
     _write_fpl_data(df, league_name, managers_map or {}, top_n, REACT_DIST / "fpl-data.json", regions_map or {})
 
+    # 3. Start static HTTP server
     port   = _free_port()
     server = _start_server(REACT_DIST, port)
 
+    # 4. Siapkan frame dir
     frames_dir = output_path.parent / f"_frames_{output_path.stem}"
     if frames_dir.exists():
         shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True)
 
-    total_gws       = len(df)
+    total_gws    = len(df)
     total_frames    = total_gws * steps_per_gw + 1  # inclusive last frame
-    HOLD_FRAMES     = 45
+    HOLD_FRAMES     = 45   # 1.5 detik hold di posisi final
     total_with_hold = total_frames + HOLD_FRAMES
 
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+            # 540×960 logical px × device_scale_factor 2 = 1080×1920 screenshot (Full HD 9:16)
             page    = browser.new_page(viewport={"width": 540, "height": 960}, device_scale_factor=2)
 
             # Install fake clock SEBELUM goto() agar Framer Motion tidak pernah
-            # melihat real performance.now() → animasi sinkron dengan fake clock.
+            # melihat real performance.now(). Jika clock di-install setelah page load,
+            # performance.now() melompat mundur ke 0 (time reversal) yang menyebabkan
+            # Framer Motion kehilangan referensi startTime → animasi tidak smooth di video.
             page.clock.install(time=0)
+
             page.goto(f"http://127.0.0.1:{port}?capture=1&theme={theme}")
 
-            # Inisialisasi React + Framer Motion dengan fake clock
+            # Step-through init: maju 30ms × 100 = 3000ms fake time.
+            # Memberi React/Framer Motion cukup waktu untuk mount & inisialisasi
+            # dengan fake clock. useEffect (MessageChannel) tetap berjalan normal
+            # di real time — tidak terpengaruh fake clock.
             for _ in range(100):
                 page.clock.run_for(30)
 
+            # Tunggu React mount + data loaded + first render selesai
             page.wait_for_function("() => window.__FPL_READY === true", timeout=20_000)
 
+            # Scale content to 85% — identical visual to the website, centered in 1080×1920.
+            # Gives ~144px top/bottom margin (content = 85% × 1920 = 1632px, centered).
             _BG = {"dark": "#0a0e1a", "light": "#f8fafc"}
             page.add_style_tag(content=f"""
               html, body {{
@@ -201,18 +231,24 @@ def render_race(
                 align-items: center;
                 justify-content: center;
               }}
-              html {{ background: {_BG.get(theme, '#0a0e1a')}; }}
-              body {{ background: transparent; }}
+              html {{
+                background: {_BG.get(theme, '#0a0e1a')};
+              }}
+              body {{
+                background: transparent;
+              }}
               #root {{
                 transform: scale(0.85);
                 transform-origin: center center;
-                width: 100vw; height: 100vh;
-                flex-shrink: 0; overflow: hidden;
+                width: 100vw;
+                height: 100vh;
+                flex-shrink: 0;
+                overflow: hidden;
                 z-index: 1;
               }}
             """)
 
-            MS_PER_FRAME = round(1000 / fps)
+            MS_PER_FRAME = round(1000 / fps)  # 33ms at 30fps, 17ms at 60fps
 
             for fi in range(total_frames):
                 gw_val = _gw_float_for_frame(fi, total_gws, steps_per_gw)
@@ -225,7 +261,8 @@ def render_race(
                 if progress_cb:
                     progress_cb(fi + 1, total_with_hold)
 
-            # Hold frames
+            # Hold frames: advance clock agar animasi FM selesai (550ms), lalu
+            # tahan posisi final selama 1.5 detik.
             page.clock.run_for(600)
             for i in range(HOLD_FRAMES):
                 page.screenshot(path=str(frames_dir / f"frame_{total_frames + i:06d}.png"))
@@ -237,6 +274,12 @@ def render_race(
     finally:
         server.shutdown()
 
+    # 5. ffmpeg: PNG sequence → MP4 (1080×1920)
+    # Memory-efficient flags for constrained environments (Railway 512MB):
+    # - ultrafast preset  : minimal lookahead buffer (~0 frames vs ~250 for "fast")
+    # - ref=1 bframes=0   : only 1 reference frame kept in RAM (vs 4-16)
+    # - threads=2         : limit worker threads to cap peak memory
+    # - crf=23            : quality-based encoding (no bitrate buffer overhead)
     subprocess.run(
         [
             "ffmpeg", "-y",
@@ -253,4 +296,5 @@ def render_race(
         check=True,
     )
 
+    # 6. Cleanup
     shutil.rmtree(frames_dir)

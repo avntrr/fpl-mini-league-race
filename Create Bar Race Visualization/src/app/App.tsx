@@ -357,20 +357,7 @@ export default function App() {
     });
   }, [gw, fplData]);
 
-  // Sort by target GW (floor+1), not interpolated score — rank changes ONCE per GW boundary
-  // so Framer Motion gets the full 550ms to animate slide transitions smoothly.
-  const sorted = useMemo(() => {
-    if (!fplData) return [];
-    const rankGw = Number.isInteger(gw)
-      ? Math.max(1, Math.min(fplData.totalGws, gw as number))
-      : Math.min(fplData.totalGws, Math.floor(gw) + 1);
-    return fplData.managers
-      .map((m, i) => ({ id: m.id, score: fplData.scores[i]?.[rankGw - 1] ?? 0 }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, topN)
-      .map(r => frame.find(f => f.id === r.id)!)
-      .filter((m): m is NonNullable<typeof m> => Boolean(m));
-  }, [gw, fplData, frame, topN]);
+  const sorted   = useMemo(() => [...frame].sort((a, b) => b.total - a.total).slice(0, topN), [frame, topN]);
   const maxTot   = sorted[0]?.total ?? 1;
   // Fixed scale: highest total across ALL GWs so bars grow throughout the race
   const finalMaxTot = useMemo(() => {

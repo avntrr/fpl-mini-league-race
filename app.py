@@ -360,6 +360,11 @@ def _build_react_if_needed() -> None:
         ["npm", "install", "--legacy-peer-deps"],
         cwd=REACT_DIR, check=True
     )
+    # react & react-dom ada di peerDependencies (optional) → install eksplisit
+    subprocess.run(
+        ["npm", "install", "--save", "react@18.3.1", "react-dom@18.3.1"],
+        cwd=REACT_DIR, check=True
+    )
     subprocess.run(
         ["npm", "run", "build"],
         cwd=REACT_DIR, check=True
